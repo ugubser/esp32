@@ -1,0 +1,19 @@
+{
+  "units": "mm",
+  "source": "User annotations supplied 2026-09-13; approximate measurements",
+  "pcb_width": 137,
+  "pcb_height": 84,
+  "screen_width": 120,
+  "screen_height": 75,
+  "screen_front_to_pcb_front": 6,
+  "pcb_and_rear_components_depth": 6,
+  "assembly_depth_allowance": 14,
+  "speaker_width": 40,
+  "speaker_height": 30,
+  "speaker_depth": 10,
+  "usb_position": "Middle of short edge; annotation says starting around 38 mm",
+  "mounting_hole_diameter": null,
+  "mounting_hole_pitch_x": null,
+  "mounting_hole_pitch_y": null,
+  "wall_mount": "Flat back for adhesive strips; user no longer requests a hook"
+}

@@ -1,0 +1,5 @@
+# Preserve CAD exports exactly and keep generated geometry out of text diffs.
+*.step binary -whitespace linguist-generated=true
+*.stl binary linguist-generated=true
+*.3mf binary
+case/**/*.svg -whitespace linguist-generated=true

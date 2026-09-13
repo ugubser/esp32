@@ -1,0 +1,566 @@
+esphome:
+  name: lcars-controller
+  friendly_name: LCARS Controller
+  min_version: 2026.8.2
+  includes:
+    - lighting_config.h
+    - transit_model.h
+    - transit_json.h
+    - transit_client.h
+    - transit_icons.h
+    - controller_state.h
+    - lcars_ui.h
+    - pcm_playback.h
+    - hail_sound.h
+    - sd_signature.h
+    - sd_probe.h
+    - sd_file_test.h
+    - sd_maintenance.h
+  project:
+    name: tribecans.lcars-controller
+    version: "1.5.1"
+  on_boot:
+    priority: -100
+    then:
+      - lambda: lcars::probe_sd_read_only();
+      - component.update: sd_card_status
+
+globals:
+  - id: transit_api_token
+    type: std::string
+    restore_value: false
+    initial_value: !secret transit_api_key_literal
+  - id: sound_volume
+    type: float
+    restore_value: true
+    initial_value: '0.60f'
+  - id: screen_inverted
+    type: bool
+    restore_value: true
+    initial_value: 'false'
+
+esp32:
+  board: esp32-s3-devkitc-1
+  flash_size: 16MB
+  cpu_frequency: 240MHz
+  framework:
+    type: esp-idf
+    sdkconfig_options:
+      CONFIG_VFS_SUPPORT_DIR: "y"
+      CONFIG_SPIRAM_USE_MALLOC: "y"
+      CONFIG_SPIRAM_MALLOC_ALWAYSINTERNAL: "256"
+      CONFIG_SPIRAM_MALLOC_RESERVE_INTERNAL: "65536"
+      CONFIG_MBEDTLS_EXTERNAL_MEM_ALLOC: "y"
+
+psram:
+  mode: octal
+  speed: 80MHz
+  ignore_not_found: false
+
+logger:
+  level: INFO
+  baud_rate: 115200
+  hardware_uart: UART0
+
+wifi:
+  id: wifi_connection
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  power_save_mode: none
+  reboot_timeout: 0s
+
+api:
+  id: ha_api
+  encryption:
+    key: !secret api_encryption_key
+  reboot_timeout: 0s
+  actions:
+    - action: sd_card_maintenance
+      variables:
+        command: string
+      then:
+        - lambda: lcars::sd_maintenance.start(command);
+        - component.update: sd_card_status
+
+button:
+  - platform: restart
+    name: Controller Restart
+    id: controller_restart
+    entity_category: diagnostic
+
+ota:
+  - platform: esphome
+    password: !secret ota_password
+
+time:
+  - platform: sntp
+    id: transit_clock
+    timezone: Europe/Zurich
+
+# Declare an image widget so ESPHome enables LVGL's image renderer. The panel
+# shares embedded icon descriptors with its native layout tests.
+image:
+  - file: transit_assets/tram.png
+    id: transit_image_renderer
+    type: RGB565
+    transparency: alpha_channel
+
+i2s_audio:
+  - id: audio_bus
+    i2s_bclk_pin: GPIO0
+    i2s_lrclk_pin: GPIO18
+
+speaker:
+  - platform: i2s_audio
+    id: sound_speaker
+    i2s_audio_id: audio_bus
+    dac_type: external
+    i2s_dout_pin: GPIO17
+    channel: mono
+    sample_rate: 16000
+    bits_per_sample: 16bit
+    buffer_duration: 150ms
+    timeout: 500ms
+
+i2c:
+  sda: GPIO19
+  scl: GPIO20
+  scan: true
+  frequency: 100kHz
+
+output:
+  - platform: ledc
+    id: backlight_output
+    pin: GPIO2
+    frequency: 1000Hz
+
+light:
+  - platform: monochromatic
+    id: backlight
+    name: Display Brightness
+    output: backlight_output
+    restore_mode: ALWAYS_ON
+    default_transition_length: 0s
+    gamma_correct: 1.0
+    initial_state:
+      state: true
+      brightness: 60%
+
+display:
+  - platform: mipi_rgb
+    id: lcd
+    model: RPI
+    dimensions: 800x480
+    color_order: RGB
+    pclk_frequency: 13MHz
+    pclk_inverted: true
+    de_pin: GPIO40
+    hsync_pin: GPIO39
+    vsync_pin: GPIO41
+    pclk_pin: GPIO42
+    hsync_front_porch: 4
+    hsync_pulse_width: 4
+    hsync_back_porch: 8
+    vsync_front_porch: 4
+    vsync_pulse_width: 4
+    vsync_back_porch: 8
+    data_pins:
+      red: [GPIO45, GPIO48, GPIO47, GPIO21, GPIO14]
+      green: [GPIO5, GPIO6, GPIO7, GPIO15, GPIO16, GPIO4]
+      blue: [GPIO8, GPIO3, GPIO46, GPIO9, GPIO1]
+    auto_clear_enabled: false
+    update_interval: never
+
+touchscreen:
+  - platform: gt911
+    id: touch
+    display: lcd
+    # The vendor's music example disables the GT911 interrupt (-1):
+    # GPIO18 is the speaker LRCLK. Poll touch instead of sharing that pin.
+    update_interval: 20ms
+    reset_pin: GPIO38
+    # The vendor library flips both axes, then its LVGL adapter flips them
+    # back. ESPHome receives raw GT911 coordinates, so no mirroring is needed.
+    on_touch:
+      - lambda: |-
+          ESP_LOGI("lcars", "Touch at %d,%d (raw %d,%d)", touch.x, touch.y, touch.x_raw, touch.y_raw);
+
+lvgl:
+  id: display_ui
+  rotation: 0
+  displays: [lcd]
+  touchscreens: [touch]
+  color_depth: 16
+  buffer_size: 25%
+  default_font: montserrat_20
+  bg_color: 0x060608
+  widgets:
+    - obj:
+        id: lcars_root
+        width: 800
+        height: 480
+        border_width: 0
+        pad_all: 0
+        radius: 0
+        bg_color: 0x060608
+    - button:
+        hidden: true
+        widgets:
+          - label:
+              text: ""
+              text_font: montserrat_28
+          - label:
+              text: ""
+              text_font: montserrat_16
+    - slider:
+        hidden: true
+    - image:
+        hidden: true
+        src: transit_image_renderer
+  on_boot:
+    - lambda: |-
+        lcars::panel.build(id(lcars_root),
+          [](size_t index, bool on) { id(set_power).execute(index, on); },
+          [](size_t index, uint32_t request) { id(activate_scene).execute(index, request); },
+          [](int level, uint32_t request) { id(set_living_brightness).execute(level, request); },
+          [](float value) {
+            auto call = id(backlight).turn_on();
+            call.set_brightness(value);
+            call.perform();
+          },
+          [](bool inverted) { id(set_orientation).execute(inverted); },
+          id(screen_inverted),
+          []() { id(play_hail).execute(); },
+          [](float volume) { id(set_sound_volume).execute(volume); },
+          id(sound_volume));
+    - lvgl.display.set_rotation:
+        lvgl_id: display_ui
+        rotation: !lambda |-
+          return id(screen_inverted) ? 180 : 0;
+
+interval:
+  - interval: 250ms
+    then:
+      - lambda: |-
+          if (lcars::sd_maintenance.poll()) id(sd_card_status).update();
+  - interval: 10ms
+    then:
+      - lambda: |-
+          auto result = lcars::sound_playback.pump(*id(sound_speaker), millis());
+          if (result == lcars::PcmPlayback::Result::FINISHED) {
+            lcars::panel.sound_status(false);
+            ESP_LOGI("lcars", "Hail playback finished");
+          } else if (result == lcars::PcmPlayback::Result::FAILED) {
+            lcars::panel.sound_status(false, true);
+            ESP_LOGE("lcars", "Hail playback failed");
+          }
+  - interval: 1s
+    then:
+      - lambda: |-
+          lcars::transit_client.tick(id(wifi_connection).is_connected(), id(transit_api_token));
+          lcars::panel.transit_tick(lcars::transit_client.board, std::time(nullptr), id(wifi_connection).is_connected());
+          lcars::panel.connection(id(wifi_connection).is_connected(), id(ha_api).is_connected_with_state_subscription());
+          lcars::panel.tick(id(device_ip).state);
+
+text_sensor:
+  - platform: template
+    name: Transit Status
+    id: transit_status
+    entity_category: diagnostic
+    update_interval: 10s
+    lambda: return lcars::transit_client.status;
+  - platform: template
+    id: sd_card_status
+    name: SD Card Status
+    entity_category: diagnostic
+    update_interval: 60s
+    lambda: return lcars::sd_probe_status;
+  - platform: wifi_info
+    ip_address:
+      id: device_ip
+      name: IP Address
+  - platform: homeassistant
+    id: control_state_0
+    entity_id: light.living
+    on_value:
+      - lambda: |-
+          lcars::panel.connection(id(wifi_connection).is_connected(), id(ha_api).is_connected_with_state_subscription());
+          lcars::panel.update(0, x);
+  - platform: homeassistant
+    id: control_state_1
+    entity_id: switch.xiaomi_power_switch_kitchen_switch
+    on_value:
+      - lambda: |-
+          lcars::panel.connection(id(wifi_connection).is_connected(), id(ha_api).is_connected_with_state_subscription());
+          lcars::panel.update(1, x);
+  - platform: homeassistant
+    id: control_state_2
+    entity_id: switch.xiaomi_power_switch_cooking_switch
+    on_value:
+      - lambda: |-
+          lcars::panel.connection(id(wifi_connection).is_connected(), id(ha_api).is_connected_with_state_subscription());
+          lcars::panel.update(2, x);
+  - platform: homeassistant
+    id: control_state_3
+    entity_id: switch.xiaomi_power_switch_hallway_switch
+    on_value:
+      - lambda: |-
+          lcars::panel.connection(id(wifi_connection).is_connected(), id(ha_api).is_connected_with_state_subscription());
+          lcars::panel.update(3, x);
+  - platform: homeassistant
+    id: control_state_4
+    entity_id: light.signify_netherlands_b_v_lct007_light
+    on_value:
+      - lambda: |-
+          lcars::panel.connection(id(wifi_connection).is_connected(), id(ha_api).is_connected_with_state_subscription());
+          lcars::panel.update(4, x);
+  - platform: homeassistant
+    id: control_state_5
+    entity_id: light.lumi_lumi_light_aqcn02_light_2
+    on_value:
+      - lambda: |-
+          lcars::panel.connection(id(wifi_connection).is_connected(), id(ha_api).is_connected_with_state_subscription());
+          lcars::panel.update(5, x);
+  - platform: homeassistant
+    id: control_state_6
+    entity_id: light.ikea_matter
+    on_value:
+      - lambda: |-
+          lcars::panel.connection(id(wifi_connection).is_connected(), id(ha_api).is_connected_with_state_subscription());
+          lcars::panel.update(6, x);
+  - platform: homeassistant
+    id: control_state_7
+    entity_id: light.entry_hall
+    on_value:
+      - lambda: |-
+          lcars::panel.connection(id(wifi_connection).is_connected(), id(ha_api).is_connected_with_state_subscription());
+          lcars::panel.update(7, x);
+  - platform: homeassistant
+    id: control_state_8
+    entity_id: light.signify_netherlands_b_v_lwv001_light
+    on_value:
+      - lambda: |-
+          lcars::panel.connection(id(wifi_connection).is_connected(), id(ha_api).is_connected_with_state_subscription());
+          lcars::panel.update(8, x);
+  - platform: homeassistant
+    id: scene_state_0
+    entity_id: scene.living_bright
+    on_value:
+      - lambda: |-
+          lcars::panel.connection(id(wifi_connection).is_connected(), id(ha_api).is_connected_with_state_subscription());
+          lcars::panel.update_scene(0, x);
+  - platform: homeassistant
+    id: scene_state_1
+    entity_id: scene.living_dimmed
+    on_value:
+      - lambda: |-
+          lcars::panel.connection(id(wifi_connection).is_connected(), id(ha_api).is_connected_with_state_subscription());
+          lcars::panel.update_scene(1, x);
+  - platform: homeassistant
+    id: scene_state_2
+    entity_id: scene.living_nightlight
+    on_value:
+      - lambda: |-
+          lcars::panel.connection(id(wifi_connection).is_connected(), id(ha_api).is_connected_with_state_subscription());
+          lcars::panel.update_scene(2, x);
+  - platform: homeassistant
+    id: scene_state_3
+    entity_id: scene.living_read
+    on_value:
+      - lambda: |-
+          lcars::panel.connection(id(wifi_connection).is_connected(), id(ha_api).is_connected_with_state_subscription());
+          lcars::panel.update_scene(3, x);
+  - platform: homeassistant
+    id: scene_state_4
+    entity_id: scene.living_concentrate
+    on_value:
+      - lambda: |-
+          lcars::panel.connection(id(wifi_connection).is_connected(), id(ha_api).is_connected_with_state_subscription());
+          lcars::panel.update_scene(4, x);
+  - platform: homeassistant
+    id: scene_state_5
+    entity_id: scene.living_energize
+    on_value:
+      - lambda: |-
+          lcars::panel.connection(id(wifi_connection).is_connected(), id(ha_api).is_connected_with_state_subscription());
+          lcars::panel.update_scene(5, x);
+  - platform: homeassistant
+    id: scene_state_6
+    entity_id: scene.living_relax
+    on_value:
+      - lambda: |-
+          lcars::panel.connection(id(wifi_connection).is_connected(), id(ha_api).is_connected_with_state_subscription());
+          lcars::panel.update_scene(6, x);
+  - platform: homeassistant
+    id: scene_state_7
+    entity_id: scene.living_savanna_sunset
+    on_value:
+      - lambda: |-
+          lcars::panel.connection(id(wifi_connection).is_connected(), id(ha_api).is_connected_with_state_subscription());
+          lcars::panel.update_scene(7, x);
+  - platform: homeassistant
+    id: scene_state_8
+    entity_id: scene.living_tropical_twilight
+    on_value:
+      - lambda: |-
+          lcars::panel.connection(id(wifi_connection).is_connected(), id(ha_api).is_connected_with_state_subscription());
+          lcars::panel.update_scene(8, x);
+  - platform: homeassistant
+    id: scene_state_9
+    entity_id: scene.living_arctic_aurora
+    on_value:
+      - lambda: |-
+          lcars::panel.connection(id(wifi_connection).is_connected(), id(ha_api).is_connected_with_state_subscription());
+          lcars::panel.update_scene(9, x);
+  - platform: homeassistant
+    id: scene_state_10
+    entity_id: scene.living_spring_blossom
+    on_value:
+      - lambda: |-
+          lcars::panel.connection(id(wifi_connection).is_connected(), id(ha_api).is_connected_with_state_subscription());
+          lcars::panel.update_scene(10, x);
+  - platform: homeassistant
+    id: scene_state_11
+    entity_id: scene.living_rainbow
+    on_value:
+      - lambda: |-
+          lcars::panel.connection(id(wifi_connection).is_connected(), id(ha_api).is_connected_with_state_subscription());
+          lcars::panel.update_scene(11, x);
+  - platform: homeassistant
+    id: scene_state_12
+    entity_id: scene.living_harry
+    on_value:
+      - lambda: |-
+          lcars::panel.connection(id(wifi_connection).is_connected(), id(ha_api).is_connected_with_state_subscription());
+          lcars::panel.update_scene(12, x);
+  - platform: homeassistant
+    id: scene_state_13
+    entity_id: scene.living_blu
+    on_value:
+      - lambda: |-
+          lcars::panel.connection(id(wifi_connection).is_connected(), id(ha_api).is_connected_with_state_subscription());
+          lcars::panel.update_scene(13, x);
+  - platform: homeassistant
+    id: scene_state_14
+    entity_id: scene.all_lights
+    on_value:
+      - lambda: |-
+          lcars::panel.connection(id(wifi_connection).is_connected(), id(ha_api).is_connected_with_state_subscription());
+          lcars::panel.update_scene(14, x);
+  - platform: homeassistant
+    id: scene_state_15
+    entity_id: scene.living_room_50
+    on_value:
+      - lambda: |-
+          lcars::panel.connection(id(wifi_connection).is_connected(), id(ha_api).is_connected_with_state_subscription());
+          lcars::panel.update_scene(15, x);
+  - platform: homeassistant
+    id: scene_state_16
+    entity_id: scene.living_room_75_bright
+    on_value:
+      - lambda: |-
+          lcars::panel.connection(id(wifi_connection).is_connected(), id(ha_api).is_connected_with_state_subscription());
+          lcars::panel.update_scene(16, x);
+  - platform: homeassistant
+    id: scene_state_17
+    entity_id: scene.living_room_75_bright_2
+    on_value:
+      - lambda: |-
+          lcars::panel.connection(id(wifi_connection).is_connected(), id(ha_api).is_connected_with_state_subscription());
+          lcars::panel.update_scene(17, x);
+
+sensor:
+  - platform: homeassistant
+    id: living_brightness
+    entity_id: light.living
+    attribute: brightness
+    on_value:
+      - lambda: |-
+          lcars::panel.connection(id(wifi_connection).is_connected(), id(ha_api).is_connected_with_state_subscription());
+          lcars::panel.update_brightness(x);
+
+script:
+  - id: set_sound_volume
+    parameters:
+      volume: float
+    then:
+      - lambda: |-
+          id(sound_volume) = volume;
+          sound_volume->update();
+          esphome::global_preferences->sync();
+          id(sound_speaker)->set_volume(volume);
+          ESP_LOGI("lcars", "Speaker volume: %.0f%% (saved)", volume * 100.0f);
+  - id: play_hail
+    then:
+      - lambda: |-
+          if (!lcars::sound_playback.active() && !id(sound_speaker)->is_failed() &&
+              id(sound_speaker)->is_stopped()) {
+            id(sound_speaker)->set_audio_stream_info(esphome::audio::AudioStreamInfo(16, 1, 16000));
+            id(sound_speaker)->set_volume(id(sound_volume));
+            if (lcars::sound_playback.begin(lcars::HAIL_SOUND, sizeof(lcars::HAIL_SOUND), millis())) {
+              lcars::panel.sound_status(true);
+              ESP_LOGI("lcars", "Hail playback started");
+            }
+          } else if (id(sound_speaker)->is_failed()) {
+            lcars::panel.sound_status(false, true);
+          }
+  - id: set_orientation
+    parameters:
+      inverted: bool
+    then:
+      - lambda: id(screen_inverted) = inverted;
+      - lambda: |-
+          screen_inverted->update();
+          esphome::global_preferences->sync();
+      - lvgl.display.set_rotation:
+          lvgl_id: display_ui
+          rotation: !lambda |-
+            return inverted ? 180 : 0;
+      - lambda: |-
+          lcars::panel.rotation_changed(inverted);
+          ESP_LOGI("lcars", "Orientation: %d degrees (saved)", inverted ? 180 : 0);
+  - id: set_power
+    mode: parallel
+    max_runs: 9
+    parameters:
+      index: int
+      power_on: bool
+    then:
+      - homeassistant.action:
+          action: !lambda |-
+            return std::string(lcars::ENTITIES.at(index).is_switch ? "switch." : "light.") + (power_on ? "turn_on" : "turn_off");
+          data:
+            entity_id: !lambda return std::string(lcars::ENTITIES.at(index).id);
+          on_error:
+            - lambda: lcars::panel.fail(index);
+  - id: activate_scene
+    mode: parallel
+    max_runs: 2
+    parameters:
+      index: int
+      request: int
+    then:
+      - homeassistant.action:
+          action: scene.turn_on
+          data:
+            entity_id: !lambda return std::string(lcars::SCENES.at(index).id);
+          on_success:
+            - lambda: lcars::panel.living_result(request, true);
+          on_error:
+            - lambda: lcars::panel.living_result(request, false);
+  - id: set_living_brightness
+    mode: parallel
+    max_runs: 2
+    parameters:
+      level: int
+      request: int
+    then:
+      - homeassistant.action:
+          action: light.turn_on
+          data:
+            entity_id: light.living
+            brightness_pct: !lambda return std::to_string(level);
+          on_success:
+            - lambda: lcars::panel.living_result(request, true);
+          on_error:
+            - lambda: lcars::panel.living_result(request, false);

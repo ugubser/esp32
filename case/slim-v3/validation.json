@@ -1,0 +1,32 @@
+{
+  "front": {
+    "valid": true,
+    "solids": 1,
+    "volume_mm3": 39828.4
+  },
+  "rear": {
+    "valid": true,
+    "solids": 1,
+    "volume_mm3": 45077.0
+  },
+  "pcb": {
+    "valid": true,
+    "solids": 1,
+    "volume_mm3": 18407.3
+  },
+  "screen": {
+    "valid": true,
+    "solids": 1,
+    "volume_mm3": 53998.7
+  },
+  "speaker": {
+    "valid": true,
+    "solids": 1,
+    "volume_mm3": 11922.7
+  },
+  "gauge": {
+    "valid": true,
+    "solids": 1,
+    "volume_mm3": 2275.4
+  }
+}

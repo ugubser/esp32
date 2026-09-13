@@ -1,0 +1,20 @@
+{
+  "front-draft.stl": {
+    "triangles": 1856,
+    "open_or_nonmanifold_edges": 0,
+    "dimensions_mm": [
+      143.0,
+      124.0,
+      8.0
+    ]
+  },
+  "rear-draft.stl": {
+    "triangles": 2900,
+    "open_or_nonmanifold_edges": 0,
+    "dimensions_mm": [
+      143.0,
+      124.0,
+      10.0
+    ]
+  }
+}

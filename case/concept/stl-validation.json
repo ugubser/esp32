@@ -1,0 +1,22 @@
+{
+  "front-draft.stl": {
+    "triangles": 1056,
+    "open_or_nonmanifold_edges": 0,
+    "size_bytes": 52884,
+    "dimensions_mm": [
+      147.0,
+      94.0,
+      8.0
+    ]
+  },
+  "rear-draft.stl": {
+    "triangles": 2244,
+    "open_or_nonmanifold_edges": 0,
+    "size_bytes": 112284,
+    "dimensions_mm": [
+      147.0,
+      94.0,
+      26.0
+    ]
+  }
+}

@@ -1,0 +1,47 @@
+# Credentials and local configuration (at any directory level)
+.env
+.env.*
+!.env.example
+secrets.yaml
+secrets.yml
+secrets.json
+secrets.h
+secrets.*
+*.key
+*.pem
+*.p12
+*.pfx
+*service-account*.json
+*serviceAccount*.json
+*-firebase-adminsdk-*.json
+
+# Compiled firmware embeds Wi-Fi, API and OTA credentials.
+*.bin
+*.elf
+*.hex
+*.uf2
+*.map
+*.ota
+.esphome/
+.platformio/
+build/
+dist/
+
+# Local runtimes, downloaded vendor packages, device backups and diagnostics
+.venv*/
+venv/
+vendor/
+backups/
+logs/
+*.log
+docs/local-setup-history.md
+docs/original-firmware-security-review.md
+
+# Python and editor/OS metadata
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.idea/
+.vscode/
+.DS_Store
+._*
