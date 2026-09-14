@@ -5,7 +5,7 @@ transport, built for the **Freenove FNK0115Q** ESP32-S3 5-inch display.
 
 The home controls use a Star Trek: The Next Generation-inspired LCARS interface.
 The transit page follows the local departure-board style: blue background,
-white transport icons and yellow delays. **Version 1.5.1** is running on the
+white transport icons and yellow delays. **Version 1.6.0** is running on the
 assembled device, with updates installed over Wi-Fi.
 
 ![Transit layout with four routes and three departures each](docs/images/transit.png)
@@ -20,8 +20,8 @@ assembled device, with updates installed over Wi-Fi.
   Entry Hall, with separate power and submenu buttons.
 - **Living Room scenes:** 18 scene selections and a brightness slider.
 - **System controls:** screen brightness, saved 180° rotation and speaker volume.
-- **Touch feedback:** the short TNG hail sound on enabled button clicks, with
-  mute at zero volume and no overlapping clips during rapid taps.
+- **Touch feedback:** distinct Star Trek-style sounds for menu navigation and
+  control actions, with mute at zero volume and no overlapping clips during rapid taps.
 - **Wi-Fi updates:** encrypted ESPHome API and password-protected OTA.
 - **Optional FAT32 storage:** remote diagnostics and explicit storage tests.
 - **Printable case:** a slim enclosure with a flat back and a speaker/cable bay.
@@ -43,8 +43,8 @@ LCARS; **TRANSIT** in its sidebar returns to departures.
 | Storage | Optional microSD; tested with a 32 GB card formatted FAT32 |
 
 This configuration targets **FNK0115Q**, not the other Freenove display variants.
-The Home Assistant and transit pages do not require an SD card. The hail clip
-and icons are embedded in firmware.
+The Home Assistant and transit pages do not require an SD card. Both feedback
+clips and the transit icons are embedded in firmware.
 
 Audio uses GPIO0/18/17 for BCLK/LRCLK/data. Touch polls over I²C, leaving GPIO18
 available for audio. SD uses GPIO10/12/13/11 for CS/clock/MISO/MOSI. HTTPS buffers
@@ -218,7 +218,7 @@ do not attach it to public releases.**
 Hardware and examples: [Freenove FNK0115 documentation](https://docs.freenove.com/projects/fnk0115/en/latest/).
 Firmware stack: [ESPHome](https://esphome.io/) and [LVGL](https://lvgl.io/).
 Transit icons and palette come from the companion transit-board application.
-The hail and earlier door-swish assets are credited in
+The current feedback and earlier sound assets are credited in
 [`firmware/audio/README.md`](firmware/audio/README.md). This personal project is
 not affiliated with Star Trek, SBB or ZVV; no ownership or blanket redistribution
 licence is claimed for third-party names, sounds or artwork.

@@ -1,20 +1,34 @@
 # Controller sounds
 
-## Current: TNG Hail Beep (version 1.4.3)
+## Current feedback sounds (version 1.6.0)
+
+Menu navigation uses [`commship.wav`](https://stdimension.org/MediaLib/effects/technology/federation/commship.wav)
+from STDimension. This applies to LIGHTS, SYSTEM, TRANSIT, BACK, each room's
+MENU button and the scene-page arrows. The original is retained as
+`commship_source.wav`; `menu_selection.wav` is the embedded 16 kHz version.
+
+All other enabled buttons use [`communicator1.wav`](https://stdimension.org/MediaLib/effects/technology/federation/communicator1.wav).
+The original is retained as `communicator1_source.wav`; `control_action.wav`
+is the embedded 16 kHz version. The SYSTEM page's CONTROL SOUND button tests
+this action clip.
+
+Both processed clips are mono signed 16-bit PCM at 16 kHz with 4 ms boundary
+fades and peaks below 70%. `../ui_sounds.h` embeds them in flash. Playback is
+nonblocking: rapid taps still execute their actions, but do not queue or overlap
+sounds. Disabled buttons, incoming state updates and the brightness slider stay
+quiet. The saved volume setting applies to both clips, including mute at zero.
+
+The sound effects are used for the requested personal controller; no ownership
+or general redistribution licence is claimed.
+
+## Previous: TNG Hail Beep (version 1.4.3)
 
 Source: TrekCore's [Hail Beep 1](https://www.trekcore.com/audio/), downloaded
 2026-09-13 from https://www.trekcore.com/audio/computer/hailbeep_clean.mp3.
 The original sound's timing is preserved. `hail.wav` is 0.312 seconds of mono
 16 kHz signed 16-bit PCM, with 4 ms boundary fades and a 70% peak.
-`../hail_sound.h` embeds its 9,984 PCM bytes. SYSTEM's HAIL button replaces
-DOOR SWISH; saved volume, touch, and playback handling remain unchanged.
-Version 1.4.3 also plays this hail on every enabled touchscreen button click.
-Rapid taps keep executing their actions while an existing clip finishes;
-they do not queue additional clips. Disabled buttons, incoming state updates
-and the brightness slider stay quiet. Saved volume applies to all feedback,
-including mute at zero. SYSTEM's HAIL button plays the same clip once.
-The previous door assets below remain available locally but are not compiled
-into the current firmware.
+`../hail_sound.h` embeds its 9,984 PCM bytes. It remains in the repository but
+is not compiled into the current firmware.
 
 ## Previous: Door swish
 

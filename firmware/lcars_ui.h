@@ -11,6 +11,8 @@
 #include <utility>
 
 namespace lcars {
+enum class SoundEffect { MENU, ACTION };
+
 class Panel {
  public:
   ControllerState state;
@@ -19,7 +21,7 @@ class Panel {
              std::function<void(int, uint32_t)> dimmer,
              std::function<void(float)> backlight,
              std::function<void(bool)> rotation, bool inverted,
-             std::function<void()> sound,
+             std::function<void(SoundEffect)> sound,
              std::function<void(float)> volume, float initial_volume) {
     power_ = std::move(power); scene_ = std::move(scene);
     dimmer_ = std::move(dimmer); backlight_ = std::move(backlight);
@@ -40,11 +42,11 @@ class Panel {
     home_nav_ = button(root, "LIGHTS", 18, 94, 118, 64, PEACH);
     system_nav_ = button(root, "SYSTEM", 18, 166, 118, 64, BLUE);
     back_nav_ = button(root, "< BACK", 18, 238, 118, 64, LILAC);
-    bind(home_nav_, [](lv_event_t *e) { self(e)->show_page(Page::HOME); }, this);
-    bind(system_nav_, [](lv_event_t *e) { self(e)->show_page(Page::SYSTEM); }, this);
-    bind(back_nav_, [](lv_event_t *e) { self(e)->show_page(Page::HOME); }, this);
+    bind(home_nav_, [](lv_event_t *e) { self(e)->show_page(Page::HOME); }, this, SoundEffect::MENU);
+    bind(system_nav_, [](lv_event_t *e) { self(e)->show_page(Page::SYSTEM); }, this, SoundEffect::MENU);
+    bind(back_nav_, [](lv_event_t *e) { self(e)->show_page(Page::HOME); }, this, SoundEffect::MENU);
     auto *transit_nav=button(root,"TRANSIT",18,310,118,106,BLUE,12);
-    bind(transit_nav,[](lv_event_t *e){self(e)->show_page(Page::TRANSIT);},this);
+    bind(transit_nav,[](lv_event_t *e){self(e)->show_page(Page::TRANSIT);},this,SoundEffect::MENU);
     box(root, 18, 432, 118, 25, LILAC, 13);
     footer_ = label(root, "WAITING FOR WIFI", 155, 437, BLUE, &lv_font_montserrat_16);
     home_ = content(root); system_ = content(root); room_ = content(root); living_ = content(root);
@@ -158,7 +160,7 @@ class Panel {
   std::function<void(int, uint32_t)> dimmer_;
   std::function<void(float)> backlight_;
   std::function<void(bool)> rotation_;
-  std::function<void()> sound_;
+  std::function<void(SoundEffect)> sound_;
   std::function<void(float)> volume_;
   int volume_percent_{60};
   lv_obj_t *volume_label_{};
@@ -180,16 +182,20 @@ class Panel {
 
   static Panel *self(lv_event_t *e) { return static_cast<Panel *>(lv_event_get_user_data(e)); }
   static Context *context(lv_event_t *e) { return static_cast<Context *>(lv_event_get_user_data(e)); }
-  void bind(lv_obj_t *o, lv_event_cb_t fn, void *data) {
+  void bind(lv_obj_t *o, lv_event_cb_t fn, void *data, SoundEffect effect=SoundEffect::ACTION) {
     // Check before the action can disable its button. PCM is fed later, so a
     // volume change in this same event applies before the first audio samples.
-    lv_obj_add_event_cb(o, [](lv_event_t *e) {
-      auto *p=self(e);
-      if (!lv_obj_has_state(lv_event_get_current_target_obj(e), LV_STATE_DISABLED) &&
-          !p->sound_busy_) p->sound_();
-    }, LV_EVENT_CLICKED, this);
+    lv_obj_add_event_cb(o, effect == SoundEffect::MENU ? menu_sound_event : action_sound_event,
+                        LV_EVENT_CLICKED, this);
     lv_obj_add_event_cb(o, fn, LV_EVENT_CLICKED, data);
   }
+  static void sound_event(lv_event_t *e, SoundEffect effect) {
+    auto *p=self(e);
+    if (!lv_obj_has_state(lv_event_get_current_target_obj(e), LV_STATE_DISABLED) &&
+        !p->sound_busy_) p->sound_(effect);
+  }
+  static void menu_sound_event(lv_event_t *e) { sound_event(e, SoundEffect::MENU); }
+  static void action_sound_event(lv_event_t *e) { sound_event(e, SoundEffect::ACTION); }
   static lv_color_t color(uint32_t value) { return lv_color_hex(value); }
   static void visible(lv_obj_t *o, bool show) {
     if (show) lv_obj_remove_flag(o, LV_OBJ_FLAG_HIDDEN); else lv_obj_add_flag(o, LV_OBJ_FLAG_HIDDEN);
@@ -227,8 +233,8 @@ class Panel {
     transit_clock_=label(transit_,"--:--:--",431,11,white,&lv_font_montserrat_20);
     auto *lights=button(transit_,"LIGHTS",580,5,102,34,0x6083C6,5,&lv_font_montserrat_16);
     auto *system=button(transit_,"SYSTEM",690,5,100,34,0x6083C6,5,&lv_font_montserrat_16);
-    bind(lights,[](lv_event_t *e){self(e)->show_page(Page::HOME);},this);
-    bind(system,[](lv_event_t *e){self(e)->show_page(Page::SYSTEM);},this);
+    bind(lights,[](lv_event_t *e){self(e)->show_page(Page::HOME);},this,SoundEffect::MENU);
+    bind(system,[](lv_event_t *e){self(e)->show_page(Page::SYSTEM);},this,SoundEffect::MENU);
     label(transit_,"Linie",55,46,white,&lv_font_montserrat_16);
     label(transit_,"Ziel",137,46,white,&lv_font_montserrat_16);
     label(transit_,"Abfahrt",480,46,white,&lv_font_montserrat_16);
@@ -265,7 +271,8 @@ class Panel {
       home_contexts_[i] = {this, i};
       bind(b, [](lv_event_t *e) { auto *c=context(e); c->panel->toggle_room(c->index); }, &home_contexts_[i]);
       auto *menu=button(home_, "> MENU", x+197, y, 109, 92, LILAC, 28);
-      bind(menu, [](lv_event_t *e) { auto *c=context(e); c->panel->show_room(c->index); }, &home_contexts_[i]);
+      bind(menu, [](lv_event_t *e) { auto *c=context(e); c->panel->show_room(c->index); },
+           &home_contexts_[i], SoundEffect::MENU);
     }
     label(home_, "HOME ASSISTANT", 340, 264, LILAC, &lv_font_montserrat_16);
     link_label_ = label(home_, "WAITING", 340, 292, BLUE, &lv_font_montserrat_20);
@@ -293,9 +300,9 @@ class Panel {
     bind(lower,[](lv_event_t *e){self(e)->change_volume(-10);},this);
     bind(higher,[](lv_event_t *e){self(e)->change_volume(10);},this);
     sound_label_=label(system_, "SPEAKER TEST", 315, 235, LILAC, &lv_font_montserrat_16);
-    sound_button_=button(system_, "HAIL", 315, 258, 311, 56, LILAC, 28);
+    sound_button_=button(system_, "CONTROL SOUND", 315, 258, 311, 56, LILAC, 28);
     bind(sound_button_, [](lv_event_t *) {}, this); // Shared feedback plays the test sound once.
-    label(system_, "FNK0115Q / LCARS 1.4", 0, 318, BLUE, &lv_font_montserrat_16);
+    label(system_, "FNK0115Q / LCARS 1.6", 0, 318, BLUE, &lv_font_montserrat_16);
   }
   void update_volume_label() {
     lv_label_set_text(volume_label_, volume_percent_ == 0 ? "VOLUME: MUTED" :
@@ -346,8 +353,8 @@ class Panel {
     prev_=button(living_,"<",0,294,76,39,BLUE,19);
     page_label_=label(living_,"1 / 3",99,305,PEACH,&lv_font_montserrat_16);
     next_=button(living_,">",174,294,76,39,BLUE,19);
-    bind(prev_,[](lv_event_t *e){auto *p=self(e);if(p->scene_page_>0)--p->scene_page_;p->render();},this);
-    bind(next_,[](lv_event_t *e){auto *p=self(e);if(p->scene_page_+1<SCENE_PAGES)++p->scene_page_;p->render();},this);
+    bind(prev_,[](lv_event_t *e){auto *p=self(e);if(p->scene_page_>0)--p->scene_page_;p->render();},this,SoundEffect::MENU);
+    bind(next_,[](lv_event_t *e){auto *p=self(e);if(p->scene_page_+1<SCENE_PAGES)++p->scene_page_;p->render();},this,SoundEffect::MENU);
     feedback_label_=label(living_,"",271,297,BLUE,&lv_font_montserrat_16);
     lv_obj_set_width(feedback_label_,350);lv_label_set_long_mode(feedback_label_,LV_LABEL_LONG_WRAP);
   }

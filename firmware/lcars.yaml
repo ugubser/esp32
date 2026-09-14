@@ -11,14 +11,14 @@ esphome:
     - controller_state.h
     - lcars_ui.h
     - pcm_playback.h
-    - hail_sound.h
+    - ui_sounds.h
     - sd_signature.h
     - sd_probe.h
     - sd_file_test.h
     - sd_maintenance.h
   project:
     name: tribecans.lcars-controller
-    version: "1.5.1"
+    version: "1.6.0"
   on_boot:
     priority: -100
     then:
@@ -230,7 +230,7 @@ lvgl:
           },
           [](bool inverted) { id(set_orientation).execute(inverted); },
           id(screen_inverted),
-          []() { id(play_hail).execute(); },
+          [](lcars::SoundEffect effect) { id(play_feedback).execute(static_cast<int>(effect)); },
           [](float volume) { id(set_sound_volume).execute(volume); },
           id(sound_volume));
     - lvgl.display.set_rotation:
@@ -249,10 +249,10 @@ interval:
           auto result = lcars::sound_playback.pump(*id(sound_speaker), millis());
           if (result == lcars::PcmPlayback::Result::FINISHED) {
             lcars::panel.sound_status(false);
-            ESP_LOGI("lcars", "Hail playback finished");
+            ESP_LOGI("lcars", "Feedback sound finished");
           } else if (result == lcars::PcmPlayback::Result::FAILED) {
             lcars::panel.sound_status(false, true);
-            ESP_LOGE("lcars", "Hail playback failed");
+            ESP_LOGE("lcars", "Feedback sound failed");
           }
   - interval: 1s
     then:
@@ -490,16 +490,21 @@ script:
           esphome::global_preferences->sync();
           id(sound_speaker)->set_volume(volume);
           ESP_LOGI("lcars", "Speaker volume: %.0f%% (saved)", volume * 100.0f);
-  - id: play_hail
+  - id: play_feedback
+    parameters:
+      effect: int
     then:
       - lambda: |-
           if (!lcars::sound_playback.active() && !id(sound_speaker)->is_failed() &&
               id(sound_speaker)->is_stopped()) {
             id(sound_speaker)->set_audio_stream_info(esphome::audio::AudioStreamInfo(16, 1, 16000));
             id(sound_speaker)->set_volume(id(sound_volume));
-            if (lcars::sound_playback.begin(lcars::HAIL_SOUND, sizeof(lcars::HAIL_SOUND), millis())) {
+            const bool menu = effect == static_cast<int>(lcars::SoundEffect::MENU);
+            const uint8_t *clip = menu ? lcars::MENU_SELECTION_SOUND : lcars::CONTROL_ACTION_SOUND;
+            const size_t clip_size = menu ? sizeof(lcars::MENU_SELECTION_SOUND) : sizeof(lcars::CONTROL_ACTION_SOUND);
+            if (lcars::sound_playback.begin(clip, clip_size, millis())) {
               lcars::panel.sound_status(true);
-              ESP_LOGI("lcars", "Hail playback started");
+              ESP_LOGI("lcars", "%s feedback sound started", menu ? "Menu" : "Action");
             }
           } else if (id(sound_speaker)->is_failed()) {
             lcars::panel.sound_status(false, true);
