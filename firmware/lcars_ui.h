@@ -6,6 +6,7 @@
 #include <ctime>
 #include <array>
 #include <cmath>
+#include <cstring>
 #include <functional>
 #include <string>
 #include <utility>
@@ -61,18 +62,19 @@ class Panel {
     if(clock_ready){time_t stamp=now;tm local{};localtime_r(&stamp,&local);std::strftime(clock,sizeof(clock),"%H:%M:%S",&local);}
     lv_label_set_text(transit_clock_,clock);
     bool errors=false;int64_t oldest=now;
+    size_t row=0;
     for(size_t r=0;r<board.size();++r) {
       const auto &group=board[r];
       const bool stale=group.fetched && now-group.fetched>180;
       const bool available=wifi && clock_ready && group.error.empty() && !stale;
-      auto next=available?transit_next(group,now):std::vector<Departure>{};
+      auto next=available?transit_next(group,now,TRANSIT_ROUTES[r].rows):std::vector<Departure>{};
       if(!available)errors=true;
       if(group.fetched)oldest=std::min(oldest,group.fetched);
-      for(size_t n=0;n<3;++n) {
-        const auto i=r*3+n;
+      for(size_t n=0;n<TRANSIT_ROUTES[r].rows;++n,++row) {
+        const auto i=row;
         std::string destination,time="--:--",minutes="",delay="";
         if(n<next.size()) {
-          destination=next[n].destination;
+          destination=transit_display_text(next[n].destination);
           time_t stamp=next[n].at;tm local{};localtime_r(&stamp,&local);char value[8];
           std::strftime(value,sizeof(value),"%H:%M",&local);time=value;
           const auto remaining=(next[n].at-now+59)/60;
@@ -240,13 +242,17 @@ class Panel {
     label(transit_,"Abfahrt",480,46,white,&lv_font_montserrat_16);
     label(transit_,"In",611,46,white,&lv_font_montserrat_16);
     label(transit_,"Delay",724,46,white,&lv_font_montserrat_16);
-    for(size_t r=0;r<4;++r) {
-      const int y=66+int(r)*98;
-      box(transit_,0,y,800,20,0x102A85,0);
-      label(transit_,TRANSIT_ROUTES[r].station,8,y+1,0xAAB8E1,&lv_font_montserrat_16);
-      for(size_t n=0;n<3;++n) {
-        const auto i=r*3+n;const int row=y+20+int(n)*26;
-        auto *icon=lv_image_create(transit_);lv_image_set_src(icon,r==0?&tram_icon:r==3?&bus_icon:&train_icon);
+    int y=66;size_t row_index=0;
+    const char *last_station=nullptr;
+    for(size_t r=0;r<TRANSIT_ROUTES.size();++r) {
+      if(!last_station || std::strcmp(last_station,TRANSIT_ROUTES[r].station)!=0) {
+        const int header_y=y;y+=20;last_station=TRANSIT_ROUTES[r].station;
+        box(transit_,0,header_y,800,20,0x102A85,0);
+        label(transit_,TRANSIT_ROUTES[r].station,8,header_y+1,0xAAB8E1,&lv_font_montserrat_16);
+      }
+      for(size_t n=0;n<TRANSIT_ROUTES[r].rows;++n,++row_index) {
+        const auto i=row_index;const int row=y;y+=26;
+        auto *icon=lv_image_create(transit_);lv_image_set_src(icon,r==0?&tram_icon:r>=3?&bus_icon:&train_icon);
         lv_obj_set_pos(icon,7,row-1);lv_obj_remove_flag(icon,LV_OBJ_FLAG_CLICKABLE);
         label(transit_,TRANSIT_ROUTES[r].line,55,row+1,white,&lv_font_montserrat_20);
         transit_destination_[i]=label(transit_,n==0?"Laden...":"—",137,row+1,white,&lv_font_montserrat_20);
@@ -302,7 +308,7 @@ class Panel {
     sound_label_=label(system_, "SPEAKER TEST", 315, 235, LILAC, &lv_font_montserrat_16);
     sound_button_=button(system_, "CONTROL SOUND", 315, 258, 311, 56, LILAC, 28);
     bind(sound_button_, [](lv_event_t *) {}, this); // Shared feedback plays the test sound once.
-    label(system_, "FNK0115Q / LCARS 1.6", 0, 318, BLUE, &lv_font_montserrat_16);
+    label(system_, "FNK0115Q / LCARS 1.7", 0, 318, BLUE, &lv_font_montserrat_16);
   }
   void update_volume_label() {
     lv_label_set_text(volume_label_, volume_percent_ == 0 ? "VOLUME: MUTED" :

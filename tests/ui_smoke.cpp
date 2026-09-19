@@ -80,17 +80,20 @@ int main() {
   setenv("TZ","Europe/Zurich",1);tzset();
   lcars::TransitBoard transit;
   const auto transit_now=lcars::transit_timestamp("2026-09-13T17:00:00Z");
-  for(size_t r=0;r<4;++r) {
+  for(size_t r=0;r<lcars::TRANSIT_ROUTES.size();++r) {
     transit[r].error="";transit[r].fetched=transit_now;
-    for(int n=0;n<3;++n)transit[r].departures.push_back({r==0?"Bahnhof Stettbach":r==1?"Weinfelden":r==2?"Winterthur":"Milchbuck",transit_now+int64_t(180+r*60+n*600),n==0?2:0});
+    for(size_t n=0;n<lcars::TRANSIT_ROUTES[r].rows;++n)
+      transit[r].departures.push_back({r==0?"Bahnhof Stettbach":r==1?"Effretikon":r==2?"Effretikon":
+        r==3||r==4?"Zürich, Bürkliplatz":"Milchbuck",transit_now+int64_t(180+r*60+n*600),n==0?2:0});
   }
   lcars::panel.transit_tick(transit,transit_now,true);
-  assert(find(root,"ABFAHRTEN")&&find(root,"Bahnhof Stettbach")&&find(root,"Weinfelden")&&find(root,"Winterthur")&&find(root,"Milchbuck"));
+  assert(find(root,"ABFAHRTEN")&&find(root,"Bahnhof Stettbach")&&find(root,"S24")&&find(root,"S8")&&
+    find(root,"161")&&find(root,"165")&&find(root,"Zuerich, Buerkliplatz")&&find(root,"Milchbuck"));
   assert(find(root,"19:00:00")&&find(root,"19:03"));snapshot("transit");
   lcars::panel.transit_tick(transit,transit_now,false);
   assert(find(root,"WLAN nicht verbunden")&&!find(root,"Bahnhof Stettbach"));snapshot("transit-offline");
   lcars::panel.transit_tick(transit,transit_now+181,true);
-  assert(find(root,"Daten veraltet")&&!find(root,"Weinfelden"));
+  assert(find(root,"Daten veraltet")&&!find(root,"Effretikon"));
   lcars::panel.transit_tick(transit,transit_now,true);
   refresh();assert(sounds.empty()); // Building and rendering never play a sound.
   click("SYSTEM");assert(sounds.size()==1);
@@ -140,7 +143,7 @@ int main() {
   lcars::panel.connection(false,false);click("CONTROL SOUND");assert(sounds.size()==action_sound_before+2);
   lcars::panel.sound_status(false);assert(find(root,"SPEAKER TEST"));snapshot("1.4-system");
   lv_area_t version_area, system_area;
-  auto *version_label=find(root,"FNK0115Q / LCARS 1.6");assert(version_label);
+  auto *version_label=find(root,"FNK0115Q / LCARS 1.7");assert(version_label);
   lv_obj_get_coords(version_label,&version_area);
   lv_obj_get_coords(lv_obj_get_parent(version_label),&system_area);
   assert(version_area.y2<=system_area.y2);

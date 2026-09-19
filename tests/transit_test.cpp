@@ -11,11 +11,20 @@ int main() {
   assert(transit_matches(0,"7","Bahnhof Stettbach"));
   assert(!transit_matches(0,"7","Wollishoferplatz"));
   assert(transit_matches(1,"S24","Thayngen"));
+  assert(transit_matches(1,"S24","Effretikon"));
   assert(!transit_matches(1,"S24","Zug"));
   assert(!transit_matches(1,"24","Weinfelden"));
   assert(transit_matches(2,"S8","Winterthur"));
-  assert(transit_matches(3,"72","Milchbuck"));
-  assert(!transit_matches(3,"72","Morgental"));
+  assert(transit_matches(2,"S8","Effretikon"));
+  assert(!transit_matches(2,"S8","Pfäffikon SZ"));
+  assert(transit_matches(3,"161","Zürich, Bürkliplatz"));
+  assert(transit_matches(4,"165","Bürkliplatz"));
+  assert(!transit_matches(4,"165","Rüschlikon, Park im Grüene"));
+  assert(transit_matches(5,"72","Milchbuck"));
+  assert(!transit_matches(5,"72","Morgental"));
+  assert(transit_display_text("Zürich, Bürkliplatz") == "Zuerich, Buerkliplatz");
+  size_t display_rows=0;for(const auto &route:TRANSIT_ROUTES)display_rows+=route.rows;
+  assert(display_rows==12&&TRANSIT_ROUTES[1].rows==2&&TRANSIT_ROUTES[2].rows==2);
   TransitBoard board;
   const std::string json=R"([
     {"number":"S24","to":"Weinfelden","category":"B","departure":"2026-09-13T17:03:00Z","delay":3},
@@ -33,6 +42,14 @@ int main() {
   board[1].fetched=now+60;
   next=transit_next(board[1],now+60);assert(next[0].at==now+120); // Departed services disappear.
   board[1].error="HTTP 401";assert(transit_next(board[1],now+60).empty());
+  const std::string buses=R"([
+    {"number":"161","to":"Zürich, Bürkliplatz","category":"B","departure":"2026-09-13T17:05:00Z","delay":0},
+    {"number":"165","to":"Zürich, Bürkliplatz","category":"B","departure":"2026-09-13T17:08:00Z","delay":1},
+    {"number":"165","to":"Rüschlikon, Park im Grüene","category":"B","departure":"2026-09-13T17:09:00Z","delay":0}
+  ])";
+  assert(transit_parse(buses,2,now,board));
+  assert(board[3].departures.size()==1&&board[4].departures.size()==1);
+  assert(transit_next(board[3],now,1).size()==1);
   assert(!transit_parse("{}",1,now,board));
   assert(!transit_parse("[{\"number\":\"S8\"}]",1,now,board));
   assert(!transit_parse("[] trailing",1,now,board));

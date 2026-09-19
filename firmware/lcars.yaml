@@ -18,7 +18,7 @@ esphome:
     - sd_maintenance.h
   project:
     name: tribecans.lcars-controller
-    version: "1.6.0"
+    version: "1.7.0"
   on_boot:
     priority: -100
     then:

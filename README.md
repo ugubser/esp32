@@ -5,17 +5,17 @@ transport, built for the **Freenove FNK0115Q** ESP32-S3 5-inch display.
 
 The home controls use a Star Trek: The Next Generation-inspired LCARS interface.
 The transit page follows the local departure-board style: blue background,
-white transport icons and yellow delays. **Version 1.6.0** is running on the
+white transport icons and yellow delays. **Version 1.7.0** is running on the
 assembled device, with updates installed over Wi-Fi.
 
-![Transit layout with four routes and three departures each](docs/images/transit.png)
+![Transit layout with twelve selected departures](docs/images/transit.png)
 
 *Layout preview rendered from the actual LVGL interface; the times are test data.*
 
 ## Features
 
-- **Twelve departures at a glance:** three upcoming services for each selected
-  tram, S-Bahn or bus route, with destination, departure time, countdown and delay.
+- **Twelve departures at a glance:** selected tram, S-Bahn and bus services,
+  with destination, departure time, countdown and delay.
 - **Home Assistant lights:** Living Room, Kitchen, Hallway, Dining Table and
   Entry Hall, with separate power and submenu buttons.
 - **Living Room scenes:** 18 scene selections and a brightness slider.
@@ -131,16 +131,18 @@ The companion service at `https://transit.tribecans.com/api` requires a bearer
 token. Set **`TRANSIT_API_KEY`** in `.env`; the service and its credentials are
 not included in this repository. See the [API contract and notes](docs/transit-api.md).
 
-| Route | Direction | Stop ID |
-| --- | --- | --- |
-| Tram 7 | Bahnhof Stettbach | `8591081` |
-| S24 | Weinfelden / Thayngen | `8503009` |
-| S8 | Winterthur | `8503009` |
-| Bus 72 | Milchbuck | `8591216` |
+| Route | Direction | Stop ID | Rows |
+| --- | --- | --- | ---: |
+| Tram 7 | Bahnhof Stettbach | `8591081` | 3 |
+| S24 | Weinfelden / Thayngen / temporary Effretikon terminus | `8503009` | 2 |
+| S8 | Winterthur / temporary Effretikon terminus | `8503009` | 2 |
+| Bus 161 | Zürich, Bürkliplatz | `ch:1:sloid:91080` | 1 |
+| Bus 165 | Zürich, Bürkliplatz | `ch:1:sloid:91080` | 1 |
+| Bus 72 | Milchbuck | `8591216` | 3 |
 
 Change route selection in [`firmware/transit_model.h`](firmware/transit_model.h).
-The client requests each of the three distinct stops once a minute, with up to
-60 results per stop, then selects the next three matching departures per route.
+The client requests each of the four distinct stops once a minute, with up to
+60 results per stop, then selects the configured number of departures per route.
 The service may cache results for two minutes. Countdowns update every second;
 SNTP supplies the clock and Europe/Zurich controls local time and daylight saving.
 

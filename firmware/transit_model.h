@@ -2,29 +2,49 @@
 #include <algorithm>
 #include <array>
 #include <cstdint>
+#include <cstring>
 #include <cstdio>
 #include <string>
 #include <vector>
 
 namespace lcars {
-struct TransitRoute { const char *station; const char *line; unsigned stop; };
-inline constexpr std::array<TransitRoute,4> TRANSIT_ROUTES{{
-  {"WOLLISHOFEN BHF / STAUBSTRASSE", "7", 0},
-  {"WOLLISHOFEN / S24", "S24", 1},
-  {"WOLLISHOFEN / S8", "S8", 1},
-  {"JUGENDHERBERGE", "72", 2}
+struct TransitRoute { const char *station; const char *line; unsigned stop; unsigned rows; };
+inline constexpr std::array<TransitRoute,6> TRANSIT_ROUTES{{
+  {"WOLLISHOFEN BHF / STAUBSTRASSE", "7", 0, 3},
+  {"ZUERICH WOLLISHOFEN / S-BAHN", "S24", 1, 2},
+  {"ZUERICH WOLLISHOFEN / S-BAHN", "S8", 1, 2},
+  {"WOLLISHOFEN BHF / WERFT", "161", 2, 1},
+  {"WOLLISHOFEN BHF / WERFT", "165", 2, 1},
+  {"JUGENDHERBERGE", "72", 3, 3}
 }};
-inline constexpr std::array<const char*,3> TRANSIT_STOPS{{"8591081","8503009","8591216"}};
+inline constexpr std::array<const char*,4> TRANSIT_STOPS{{
+  "8591081", "8503009", "ch:1:sloid:91080", "8591216"
+}};
 struct Departure { std::string destination; int64_t at{}; int delay{}; };
 struct TransitGroup { std::vector<Departure> departures; std::string error{"Laden..."}; int64_t fetched{}; };
-using TransitBoard = std::array<TransitGroup,4>;
+using TransitBoard = std::array<TransitGroup,TRANSIT_ROUTES.size()>;
+inline std::string transit_display_text(std::string value) {
+  struct Replacement { const char *utf8; const char *ascii; };
+  static constexpr Replacement replacements[]={{"ä","ae"},{"ö","oe"},{"ü","ue"},
+    {"Ä","Ae"},{"Ö","Oe"},{"Ü","Ue"},{"ß","ss"}};
+  for(const auto &replacement:replacements) {
+    size_t at=0;
+    while((at=value.find(replacement.utf8,at))!=std::string::npos) {
+      value.replace(at,std::strlen(replacement.utf8),replacement.ascii);
+      at+=std::strlen(replacement.ascii);
+    }
+  }
+  return value;
+}
 inline bool transit_matches(size_t route, const std::string &line, const std::string &destination) {
   if (route >= TRANSIT_ROUTES.size() || line != TRANSIT_ROUTES[route].line) return false;
   switch(route) {
     case 0:return destination=="Bahnhof Stettbach" || destination=="Stettbach, Bahnhof";
-    case 1:return destination=="Weinfelden" || destination=="Thayngen";
-    case 2:return destination=="Winterthur";
-    case 3:return destination=="Milchbuck" || destination=="Zürich, Milchbuck";
+    case 1:return destination=="Weinfelden" || destination=="Thayngen" || destination=="Effretikon";
+    case 2:return destination=="Winterthur" || destination=="Effretikon";
+    case 3:
+    case 4:return destination=="Bürkliplatz" || destination=="Zürich, Bürkliplatz";
+    case 5:return destination=="Milchbuck" || destination=="Zürich, Milchbuck";
   }
   return false;
 }
@@ -59,10 +79,10 @@ inline void transit_add(TransitGroup &g, Departure d, int64_t now) {
   std::sort(g.departures.begin(),g.departures.end(),[](const Departure &a,const Departure &b){return a.at<b.at;});
   if(g.departures.size()>12)g.departures.resize(12);
 }
-inline std::vector<Departure> transit_next(const TransitGroup &g,int64_t now) {
+inline std::vector<Departure> transit_next(const TransitGroup &g,int64_t now,size_t limit=3) {
   std::vector<Departure> result;
   if(!g.error.empty() || !g.fetched || now-g.fetched>180)return result;
-  for(const auto &d:g.departures)if(d.at>now) {result.push_back(d);if(result.size()==3)break;}
+  for(const auto &d:g.departures)if(d.at>now) {result.push_back(d);if(result.size()==limit)break;}
   return result;
 }
 }
