@@ -5,7 +5,7 @@ transport, built for the **Freenove FNK0115Q** ESP32-S3 5-inch display.
 
 The home controls use a Star Trek: The Next Generation-inspired LCARS interface.
 The transit page follows the local departure-board style: blue background,
-white transport icons and yellow delays. **Version 1.8.1** is running on the
+white transport icons and yellow delays. **Version 1.8.4** is running on the
 assembled device, with updates installed over Wi-Fi.
 
 ![Transit layout with twelve selected departures](docs/images/transit.png)
@@ -52,9 +52,14 @@ and larger allocations use PSRAM; internal RAM is reserved for system tasks.
 
 ESPHome 2026.8.2 requests an LCD DMA restart in every `mipi_rgb` loop pass.
 The display configuration disables that loop after initialization because LVGL
-draws directly to the RGB frame buffer and the ESP-IDF driver detects missed
-transfers at VSYNC. This targets a visible flash during the minute-by-minute
-transit fetch. Keep this workaround under review when upgrading ESPHome.
+draws directly to the RGB frame buffer. The transit client reuses one HTTPS
+connection for its four stop requests per minute; a live refresh used one
+connection and returned all six route groups. Display flicker needs observation
+on the physical panel because native tests cannot reproduce RGB DMA contention.
+Review the display workaround when upgrading ESPHome.
+
+The ESP32-S3 data cache uses 64-byte lines as recommended for RGB bounce-buffer
+mode; the default 32-byte setting can disrupt display output under memory load.
 
 ## Set up and build
 
