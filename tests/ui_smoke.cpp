@@ -16,6 +16,13 @@ static lv_obj_t *find(lv_obj_t *obj,const char *text) {
     if(auto *r=find(lv_obj_get_child(obj,i),text))return r;
   return nullptr;
 }
+static lv_obj_t *find_image(lv_obj_t *obj,const lv_image_dsc_t *source) {
+  if(lv_obj_has_flag(obj,LV_OBJ_FLAG_HIDDEN))return nullptr;
+  if(lv_obj_check_type(obj,&lv_image_class)&&lv_image_get_src(obj)==source)return obj;
+  for(uint32_t i=0;i<lv_obj_get_child_count(obj);++i)
+    if(auto *r=find_image(lv_obj_get_child(obj,i),source))return r;
+  return nullptr;
+}
 static lv_obj_t *click(const char *text) {
   lcars::panel.sound_status(false); // Normal taps are spaced after playback completes.
   auto sounds_before=sounds.size();
@@ -87,9 +94,16 @@ int main() {
         r==3||r==4?"Zürich, Bürkliplatz":"Milchbuck",transit_now+int64_t(180+r*60+n*600),n==0?2:0});
   }
   lcars::panel.transit_tick(transit,transit_now,true);
-  lcars::WeatherReading weather{17.2f,20.7f,0.0f,0.4f,transit_now,"2026-09-13"};
+  lcars::WeatherReading weather{17.2f,20.7f,2,80,true,transit_now,"2026-09-13"};
   lcars::panel.weather_tick(weather,transit_now,true);
   assert(find(root,"JETZT")&&find(root,"MAX HEUTE")&&find(root,"17°")&&find(root,"21°"));
+  assert(find_image(root,&lcars::weather_cloud_sun_icon));
+  assert(find_image(root,&lcars::weather_cloud_sun_rain_icon));
+  weather.current_code=95;weather.is_day=false;
+  lcars::panel.weather_tick(weather,transit_now,true);
+  assert(find_image(root,&lcars::weather_cloud_lightning_icon));
+  weather.current_code=2;weather.is_day=true;
+  lcars::panel.weather_tick(weather,transit_now,true);
   assert(!find(root,"ABFAHRTEN"));
   assert(find(root,"Bahnhof Stettbach")&&find(root,"S24")&&find(root,"S8")&&
     find(root,"161")&&find(root,"165")&&find(root,"Zuerich, Buerkliplatz")&&find(root,"Milchbuck"));
@@ -97,6 +111,7 @@ int main() {
   lcars::panel.transit_tick(transit,transit_now,false);
   lcars::panel.weather_tick(weather,transit_now,false);
   assert(find(root,"--°")&&!find(root,"17°"));
+  assert(!find_image(root,&lcars::weather_cloud_sun_icon));
   assert(find(root,"WLAN nicht verbunden")&&!find(root,"Bahnhof Stettbach"));snapshot("transit-offline");
   lcars::panel.transit_tick(transit,transit_now+181,true);
   assert(find(root,"Daten veraltet")&&!find(root,"Effretikon"));
@@ -150,7 +165,7 @@ int main() {
   lcars::panel.connection(false,false);click("CONTROL SOUND");assert(sounds.size()==action_sound_before+2);
   lcars::panel.sound_status(false);assert(find(root,"SPEAKER TEST"));snapshot("1.4-system");
   lv_area_t version_area, system_area;
-  auto *version_label=find(root,"FNK0115Q / LCARS 1.9.0");assert(version_label);
+  auto *version_label=find(root,"FNK0115Q / LCARS 1.9.1");assert(version_label);
   lv_obj_get_coords(version_label,&version_area);
   lv_obj_get_coords(lv_obj_get_parent(version_label),&system_area);
   assert(version_area.y2<=system_area.y2);

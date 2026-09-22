@@ -4,6 +4,7 @@
 #include "transit_model.h"
 #include "transit_icons.h"
 #include "weather_model.h"
+#include "weather_icons.h"
 #include <ctime>
 #include <array>
 #include <cmath>
@@ -102,8 +103,8 @@ class Panel {
     const bool available=wifi && weather_fresh(weather,now,day);
     if(!available) {
       set_label(weather_now_,"--°");set_label(weather_high_,"--°");
-      set_rain_icon(weather_now_drop_,weather_now_slash_,now_rain_state_,-1);
-      set_rain_icon(weather_today_drop_,weather_today_slash_,today_rain_state_,-1);
+      set_weather_icon(weather_now_icon_,weather_now_unknown_,now_weather_icon_,WeatherIcon::UNKNOWN);
+      set_weather_icon(weather_today_icon_,weather_today_unknown_,today_weather_icon_,WeatherIcon::UNKNOWN);
       return;
     }
     char value[16];
@@ -111,8 +112,10 @@ class Panel {
     set_label(weather_now_,value);
     std::snprintf(value,sizeof(value),"%d°",int(std::lround(weather.high_c)));
     set_label(weather_high_,value);
-    set_rain_icon(weather_now_drop_,weather_now_slash_,now_rain_state_,weather_raining_now(weather)?1:0);
-    set_rain_icon(weather_today_drop_,weather_today_slash_,today_rain_state_,weather_rain_today(weather)?1:0);
+    set_weather_icon(weather_now_icon_,weather_now_unknown_,now_weather_icon_,
+                     weather_icon(weather.current_code,weather.is_day));
+    set_weather_icon(weather_today_icon_,weather_today_unknown_,today_weather_icon_,
+                     weather_icon(weather.today_code,true));
   }
   void sound_status(bool busy, bool failed = false) {
     sound_busy_ = busy;
@@ -197,9 +200,9 @@ class Panel {
   lv_obj_t *sound_button_{}, *sound_label_{};
   lv_obj_t *rotation_label_{};
   lv_obj_t *lcars_root_{}, *transit_{}, *transit_clock_{}, *transit_status_{};
-  lv_obj_t *weather_now_{}, *weather_high_{}, *weather_now_drop_{}, *weather_today_drop_{};
-  lv_obj_t *weather_now_slash_{}, *weather_today_slash_{};
-  int now_rain_state_{-2},today_rain_state_{-2};
+  lv_obj_t *weather_now_{}, *weather_high_{}, *weather_now_icon_{}, *weather_today_icon_{};
+  lv_obj_t *weather_now_unknown_{}, *weather_today_unknown_{};
+  WeatherIcon now_weather_icon_{WeatherIcon::UNKNOWN},today_weather_icon_{WeatherIcon::UNKNOWN};
   std::array<lv_obj_t*,12> transit_destination_{},transit_time_{},transit_minutes_{},transit_delay_{};
   lv_obj_t *home_{}, *system_{}, *room_{}, *living_{}, *home_nav_{}, *system_nav_{}, *back_nav_{};
   lv_obj_t *footer_{}, *link_label_{}, *ip_label_{}, *room_title_{}, *room_on_{}, *room_off_{};
@@ -232,17 +235,31 @@ class Panel {
   static void set_label(lv_obj_t *o,const char *text) {
     if(std::strcmp(lv_label_get_text(o),text)!=0)lv_label_set_text(o,text);
   }
-  static void set_rain_icon(lv_obj_t *drop,lv_obj_t *slash,int &old_state,int state) {
-    if(old_state==state)return;
-    old_state=state;
-    set_label(drop,state<0?"?":LV_SYMBOL_TINT);
-    lv_obj_set_style_text_color(drop,color(state>0?0x78D9FF:0xB3C7E9),0);
-    visible(slash,state==0);
+  static const lv_image_dsc_t *weather_icon_source(WeatherIcon icon) {
+    switch(icon) {
+      case WeatherIcon::SUN: return &weather_sun_icon;
+      case WeatherIcon::MOON: return &weather_moon_icon;
+      case WeatherIcon::CLOUD_SUN: return &weather_cloud_sun_icon;
+      case WeatherIcon::CLOUD_MOON: return &weather_cloud_moon_icon;
+      case WeatherIcon::CLOUD: return &weather_cloud_icon;
+      case WeatherIcon::FOG: return &weather_cloud_fog_icon;
+      case WeatherIcon::DRIZZLE: return &weather_cloud_drizzle_icon;
+      case WeatherIcon::RAIN: return &weather_cloud_rain_icon;
+      case WeatherIcon::SUN_RAIN: return &weather_cloud_sun_rain_icon;
+      case WeatherIcon::MOON_RAIN: return &weather_cloud_moon_rain_icon;
+      case WeatherIcon::SNOW: return &weather_cloud_snow_icon;
+      case WeatherIcon::STORM: return &weather_cloud_lightning_icon;
+      case WeatherIcon::UNKNOWN: return nullptr;
+    }
+    return nullptr;
   }
-  static lv_obj_t *rain_slash(lv_obj_t *parent,int x,int y) {
-    auto *slash=label(parent,"/",x+5,y+3,0xFFFFFF,&lv_font_montserrat_16);
-    lv_obj_add_flag(slash,LV_OBJ_FLAG_HIDDEN);
-    return slash;
+  static void set_weather_icon(lv_obj_t *image,lv_obj_t *unknown,WeatherIcon &old_icon,WeatherIcon icon) {
+    if(old_icon==icon)return;
+    old_icon=icon;
+    const auto *source=weather_icon_source(icon);
+    if(source)lv_image_set_src(image,source);
+    visible(image,source!=nullptr);
+    visible(unknown,source==nullptr);
   }
   static void visible(lv_obj_t *o, bool show) {
     if(show==!lv_obj_has_flag(o,LV_OBJ_FLAG_HIDDEN))return;
@@ -280,13 +297,17 @@ class Panel {
     box(transit_,0,0,800,44,header,0);
     label(transit_,"JETZT",12,13,white,&lv_font_montserrat_16);
     weather_now_=label(transit_,"--°",70,10,white,&lv_font_montserrat_20);
-    weather_now_drop_=label(transit_,"?",128,10,0xB3C7E9,&lv_font_montserrat_20);
-    weather_now_slash_=rain_slash(transit_,128,9);
+    weather_now_icon_=lv_image_create(transit_);
+    lv_obj_set_pos(weather_now_icon_,128,8);lv_obj_add_flag(weather_now_icon_,LV_OBJ_FLAG_HIDDEN);
+    lv_obj_remove_flag(weather_now_icon_,LV_OBJ_FLAG_CLICKABLE);
+    weather_now_unknown_=label(transit_,"?",132,10,0xB3C7E9,&lv_font_montserrat_20);
     box(transit_,162,8,1,28,0xAAB8E1,0);
     label(transit_,"MAX HEUTE",177,13,white,&lv_font_montserrat_16);
     weather_high_=label(transit_,"--°",286,10,white,&lv_font_montserrat_20);
-    weather_today_drop_=label(transit_,"?",346,10,0xB3C7E9,&lv_font_montserrat_20);
-    weather_today_slash_=rain_slash(transit_,346,9);
+    weather_today_icon_=lv_image_create(transit_);
+    lv_obj_set_pos(weather_today_icon_,346,8);lv_obj_add_flag(weather_today_icon_,LV_OBJ_FLAG_HIDDEN);
+    lv_obj_remove_flag(weather_today_icon_,LV_OBJ_FLAG_CLICKABLE);
+    weather_today_unknown_=label(transit_,"?",350,10,0xB3C7E9,&lv_font_montserrat_20);
     transit_clock_=label(transit_,"--:--:--",431,11,white,&lv_font_montserrat_20);
     auto *lights=button(transit_,"LIGHTS",580,5,102,34,0x6083C6,5,&lv_font_montserrat_16);
     auto *system=button(transit_,"SYSTEM",690,5,100,34,0x6083C6,5,&lv_font_montserrat_16);
@@ -363,7 +384,7 @@ class Panel {
     sound_label_=label(system_, "SPEAKER TEST", 315, 235, LILAC, &lv_font_montserrat_16);
     sound_button_=button(system_, "CONTROL SOUND", 315, 258, 311, 56, LILAC, 28);
     bind(sound_button_, [](lv_event_t *) {}, this); // Shared feedback plays the test sound once.
-    label(system_, "FNK0115Q / LCARS 1.9.0", 0, 318, BLUE, &lv_font_montserrat_16);
+    label(system_, "FNK0115Q / LCARS 1.9.1", 0, 318, BLUE, &lv_font_montserrat_16);
   }
   void update_volume_label() {
     set_label(volume_label_, volume_percent_ == 0 ? "VOLUME: MUTED" :

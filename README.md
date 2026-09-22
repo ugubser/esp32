@@ -15,8 +15,8 @@ white transport icons and yellow delays. Updates are installed over Wi-Fi.
 
 - **Twelve departures at a glance:** selected tram, S-Bahn and bus services,
   with destination, departure time, countdown and delay.
-- **Weather in the transit header:** current temperature and rain, today's
-  forecast high and whether rain is forecast, fetched from Open-Meteo.
+- **Weather in the transit header:** current temperature and condition, today's
+  forecast high and condition, fetched from Open-Meteo.
 - **Home Assistant lights:** Living Room, Kitchen, Hallway, Dining Table and
   Entry Hall, with separate power and submenu buttons.
 - **Living Room scenes:** 18 scene selections and a brightness slider.
@@ -139,18 +139,20 @@ newer requests.
 
 ## Weather
 
-The transit header shows **JETZT** with the current temperature and rain status,
-then **MAX HEUTE** with the forecast high and whether rain is expected today.
-A blue droplet means rain; a slashed droplet means dry. Missing or stale data
-shows `--°` and `?` instead of an old forecast.
+The transit header shows **JETZT** with the current temperature and condition,
+then **MAX HEUTE** with the forecast high and the day's overall condition.
+The icons distinguish clear, partly cloudy, overcast, fog, drizzle, rain,
+showers, snow and thunderstorms. Current conditions use sun or moon variants
+according to the time of day. Missing or stale data shows `--°` and `?`.
 
 The controller reads the coordinates from Home Assistant's `zone.home` and
 requests [Open-Meteo's forecast API](https://open-meteo.com/en/docs) directly
 over HTTPS. There is no weather API key. It refreshes every 30 minutes, retries
 failures after five minutes, and refreshes when the local day changes. The
 Home Assistant **Weather Status** diagnostic sensor reports the last result.
-The rain symbols use Open-Meteo's rain plus showers amounts, so today's symbol
-reflects the model's predicted precipitation rather than a probability.
+The icons use Open-Meteo's current and daily WMO weather codes; the daily code
+represents the most severe condition predicted that day. The embedded
+[Lucide weather icons](firmware/weather_assets/README.md) need no runtime download.
 Weather requires the Home Assistant connection to provide `zone.home`.
 
 ## Transit
@@ -248,6 +250,8 @@ do not attach it to public releases.**
 Hardware and examples: [Freenove FNK0115 documentation](https://docs.freenove.com/projects/fnk0115/en/latest/).
 Firmware stack: [ESPHome](https://esphome.io/) and [LVGL](https://lvgl.io/).
 Transit icons and palette come from the companion transit-board application.
+Weather icons are from [Lucide](https://lucide.dev/) under its
+[included license](firmware/weather_assets/LUCIDE-LICENSE).
 The current feedback and earlier sound assets are credited in
 [`firmware/audio/README.md`](firmware/audio/README.md). This personal project is
 not affiliated with Star Trek, SBB or ZVV; no ownership or blanket redistribution
