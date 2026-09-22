@@ -18,7 +18,7 @@ esphome:
     - sd_maintenance.h
   project:
     name: tribecans.lcars-controller
-    version: "1.7.0"
+    version: "1.8.0"
   on_boot:
     priority: -100
     then:
@@ -119,8 +119,8 @@ speaker:
     channel: mono
     sample_rate: 16000
     bits_per_sample: 16bit
-    buffer_duration: 150ms
-    timeout: 500ms
+    buffer_duration: 1s
+    timeout: 2s
 
 i2c:
   sda: GPIO19

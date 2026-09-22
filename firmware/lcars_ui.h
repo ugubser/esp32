@@ -60,7 +60,7 @@ class Panel {
     const bool clock_ready=now>1700000000;
     char clock[16]="--:--:--";
     if(clock_ready){time_t stamp=now;tm local{};localtime_r(&stamp,&local);std::strftime(clock,sizeof(clock),"%H:%M:%S",&local);}
-    lv_label_set_text(transit_clock_,clock);
+    set_label(transit_clock_,clock);
     bool errors=false;int64_t oldest=now;
     size_t row=0;
     for(size_t r=0;r<board.size();++r) {
@@ -84,28 +84,30 @@ class Panel {
           destination=!wifi?"WLAN nicht verbunden":!clock_ready?"Uhr wird synchronisiert":stale?"Daten veraltet":
             !group.error.empty()?group.error:"Keine weiteren Abfahrten";
         } else destination="—";
-        lv_label_set_text(transit_destination_[i],destination.c_str());
-        lv_label_set_text(transit_time_[i],time.c_str());lv_label_set_text(transit_minutes_[i],minutes.c_str());
-        lv_label_set_text(transit_delay_[i],delay.c_str());
+        set_label(transit_destination_[i],destination.c_str());
+        set_label(transit_time_[i],time.c_str());set_label(transit_minutes_[i],minutes.c_str());
+        set_label(transit_delay_[i],delay.c_str());
       }
     }
     const std::string status=!wifi?"OFFLINE / WLAN":!clock_ready?"WARTE AUF UHRZEIT":errors?"DATEN NICHT VOLLSTAENDIG / AUTOMATISCHE AKTUALISIERUNG":
       "LIVE / AKTUALISIERT VOR "+std::to_string(std::max<int64_t>(0,now-oldest))+" S";
-    lv_label_set_text(transit_status_,status.c_str());
+    set_label(transit_status_,status.c_str());
   }
   void sound_status(bool busy, bool failed = false) {
     sound_busy_ = busy;
     if (!ready_) return;
     enabled(sound_button_, !busy);
-    lv_label_set_text(sound_label_, failed ? "AUDIO ERROR" : busy ? "PLAYING..." : "SPEAKER TEST");
+    set_label(sound_label_, failed ? "AUDIO ERROR" : busy ? "PLAYING..." : "SPEAKER TEST");
   }
   void connection(bool wifi, bool ha) {
+    const bool connected=wifi&&ha;
+    if(wifi_==wifi&&state.connected()==connected)return;
     wifi_ = wifi;
     if (!wifi || !ha) {
       scene_ready_.fill(false); brightness_ = -1;
       living_request_.cancel(); feedback_.clear();
     }
-    state.set_connected(wifi && ha); render();
+    state.set_connected(connected); render();
   }
   void update(size_t index, const std::string &value) {
     state.update(index, value);
@@ -130,13 +132,17 @@ class Panel {
   void fail(size_t index) { state.fail(index); render(); }
   void rotation_changed(bool inverted) {
     inverted_=inverted;
-    if(ready_)lv_label_set_text(rotation_label_,inverted?"ORIENTATION: 180 DEG":"ORIENTATION: 0 DEG");
+    if(ready_)set_label(rotation_label_,inverted?"ORIENTATION: 180 DEG":"ORIENTATION: 0 DEG");
   }
   void tick(const std::string &ip) {
-    state.tick(lv_tick_get());
-    if (living_request_.tick(lv_tick_get())) feedback_ = "COMMAND TIMED OUT";
-    if (ready_) lv_label_set_text(ip_label_, ("IP ADDRESS: " + ip).c_str());
-    render();
+    const auto now=lv_tick_get();
+    bool changed=state.tick(now);
+    if (living_request_.tick(now)) { feedback_ = "COMMAND TIMED OUT"; changed=true; }
+    if(ip_!=ip) {
+      ip_=ip;changed=true;
+      if(ready_)set_label(ip_label_,("IP ADDRESS: "+ip_).c_str());
+    }
+    if(changed)render();
   }
   void show_room(size_t index) {
     if (index >= ROOMS.size()) return;
@@ -155,7 +161,7 @@ class Panel {
   size_t room_index_{0}, scene_page_{0};
   int brightness_{-1};
   RequestState living_request_;
-  std::string feedback_, requested_label_;
+  std::string feedback_, requested_label_, ip_;
   std::array<bool, SCENES.size()> scene_ready_{};
   std::function<void(size_t, bool)> power_;
   std::function<void(size_t, uint32_t)> scene_;
@@ -199,10 +205,15 @@ class Panel {
   static void menu_sound_event(lv_event_t *e) { sound_event(e, SoundEffect::MENU); }
   static void action_sound_event(lv_event_t *e) { sound_event(e, SoundEffect::ACTION); }
   static lv_color_t color(uint32_t value) { return lv_color_hex(value); }
+  static void set_label(lv_obj_t *o,const char *text) {
+    if(std::strcmp(lv_label_get_text(o),text)!=0)lv_label_set_text(o,text);
+  }
   static void visible(lv_obj_t *o, bool show) {
+    if(show==!lv_obj_has_flag(o,LV_OBJ_FLAG_HIDDEN))return;
     if (show) lv_obj_remove_flag(o, LV_OBJ_FLAG_HIDDEN); else lv_obj_add_flag(o, LV_OBJ_FLAG_HIDDEN);
   }
   static void enabled(lv_obj_t *o, bool enable) {
+    if(enable==!lv_obj_has_state(o,LV_STATE_DISABLED))return;
     if (enable) lv_obj_remove_state(o, LV_STATE_DISABLED); else lv_obj_add_state(o, LV_STATE_DISABLED);
     lv_obj_set_style_opa(o, LV_OPA_COVER, LV_STATE_DISABLED);
   }
@@ -308,10 +319,10 @@ class Panel {
     sound_label_=label(system_, "SPEAKER TEST", 315, 235, LILAC, &lv_font_montserrat_16);
     sound_button_=button(system_, "CONTROL SOUND", 315, 258, 311, 56, LILAC, 28);
     bind(sound_button_, [](lv_event_t *) {}, this); // Shared feedback plays the test sound once.
-    label(system_, "FNK0115Q / LCARS 1.7", 0, 318, BLUE, &lv_font_montserrat_16);
+    label(system_, "FNK0115Q / LCARS 1.8", 0, 318, BLUE, &lv_font_montserrat_16);
   }
   void update_volume_label() {
-    lv_label_set_text(volume_label_, volume_percent_ == 0 ? "VOLUME: MUTED" :
+    set_label(volume_label_, volume_percent_ == 0 ? "VOLUME: MUTED" :
       ("VOLUME: " + std::to_string(volume_percent_) + "%").c_str());
   }
   void change_volume(int delta) {
@@ -415,8 +426,8 @@ class Panel {
   }
   void render() {
     if(!ready_)return;
-    lv_label_set_text(footer_,!wifi_?"WIFI DISCONNECTED":state.connected()?"HOME ASSISTANT / CONNECTED":"WIFI READY / WAITING FOR HOME ASSISTANT");
-    lv_label_set_text(link_label_,state.connected()?"CONNECTED":"OFFLINE");
+    set_label(footer_,!wifi_?"WIFI DISCONNECTED":state.connected()?"HOME ASSISTANT / CONNECTED":"WIFI READY / WAITING FOR HOME ASSISTANT");
+    set_label(link_label_,state.connected()?"CONNECTED":"OFFLINE");
     for(size_t i=0;i<ROOMS.size();++i) {
       const auto summary=summarize(state,i);
       const bool on=state.connected()&&summary.on>0;
@@ -426,13 +437,13 @@ class Panel {
     }
     const auto &room=ROOMS[room_index_];const auto summary=summarize(state,room_index_);
     if(page_==Page::ROOM) {
-      lv_label_set_text(room_title_,room.name);
+      set_label(room_title_,room.name);
       enabled(room_on_,state.connected()&&summary.ready()&&summary.on<room.count);
       enabled(room_off_,state.connected()&&summary.ready()&&summary.on>0);
       for(size_t n=0;n<3;++n) {
         visible(member_buttons_[n],n<room.count);if(n>=room.count)continue;
         const auto i=room.members[n];const bool on=state.at(i).state==State::ON;
-        lv_label_set_text(member_titles_[n],ENTITIES[i].name);lv_label_set_text(member_values_[n],control_status(i));
+        set_label(member_titles_[n],ENTITIES[i].name);set_label(member_values_[n],control_status(i));
         enabled(member_buttons_[n],state.can_control(i));
         lv_obj_set_style_bg_color(member_buttons_[n],color(on?PEACH:OFF_BG),0);
         lv_obj_set_style_text_color(member_titles_[n],color(on?BLACK:TEXT),0);
@@ -446,18 +457,18 @@ class Panel {
       if(!lv_obj_has_state(slider_,LV_STATE_PRESSED)) {
         const int value=state.at(0).state==State::OFF?0:brightness_;
         if(value>=0)lv_slider_set_value(slider_,value<1?1:value,LV_ANIM_OFF);
-        lv_label_set_text(brightness_label_,(value>=0?"BRIGHTNESS: "+std::to_string(value)+"%":"BRIGHTNESS: --").c_str());
+        set_label(brightness_label_,(value>=0?"BRIGHTNESS: "+std::to_string(value)+"%":"BRIGHTNESS: --").c_str());
       }
       for(size_t n=0;n<SCENES_PER_PAGE;++n) {
         const size_t i=scene_page_*SCENES_PER_PAGE+n;visible(scene_buttons_[n],i<SCENES.size());if(i>=SCENES.size())continue;
-        lv_label_set_text(scene_labels_[n],SCENES[i].name);lv_obj_center(scene_labels_[n]);
+        set_label(scene_labels_[n],SCENES[i].name);lv_obj_center(scene_labels_[n]);
         const bool available=ready&&scene_ready_[i];enabled(scene_buttons_[n],available);
         lv_obj_set_style_bg_color(scene_buttons_[n],color(available?LILAC:OFF_BG),0);
         lv_obj_set_style_text_color(scene_labels_[n],color(available?BLACK:BLUE),0);
       }
       enabled(prev_,scene_page_>0);enabled(next_,scene_page_+1<SCENE_PAGES);
-      lv_label_set_text(page_label_,(std::to_string(scene_page_+1)+" / "+std::to_string(SCENE_PAGES)).c_str());
-      lv_label_set_text(feedback_label_,!state.connected()?"HOME ASSISTANT OFFLINE":state.at(0).failed?"LIGHT COMMAND FAILED":feedback_.c_str());
+      set_label(page_label_,(std::to_string(scene_page_+1)+" / "+std::to_string(SCENE_PAGES)).c_str());
+      set_label(feedback_label_,!state.connected()?"HOME ASSISTANT OFFLINE":state.at(0).failed?"LIGHT COMMAND FAILED":feedback_.c_str());
     }
   }
 };

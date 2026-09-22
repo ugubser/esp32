@@ -5,7 +5,7 @@ transport, built for the **Freenove FNK0115Q** ESP32-S3 5-inch display.
 
 The home controls use a Star Trek: The Next Generation-inspired LCARS interface.
 The transit page follows the local departure-board style: blue background,
-white transport icons and yellow delays. **Version 1.7.0** is running on the
+white transport icons and yellow delays. **Version 1.8.0** is running on the
 assembled device, with updates installed over Wi-Fi.
 
 ![Transit layout with twelve selected departures](docs/images/transit.png)
@@ -21,7 +21,7 @@ assembled device, with updates installed over Wi-Fi.
 - **Living Room scenes:** 18 scene selections and a brightness slider.
 - **System controls:** screen brightness, saved 180° rotation and speaker volume.
 - **Touch feedback:** distinct Star Trek-style sounds for menu navigation and
-  control actions, with mute at zero volume and no overlapping clips during rapid taps.
+  control actions, with mute at zero volume, buffered playback and no overlapping clips during rapid taps.
 - **Wi-Fi updates:** encrypted ESPHome API and password-protected OTA.
 - **Optional FAT32 storage:** remote diagnostics and explicit storage tests.
 - **Printable case:** a slim enclosure with a flat back and a speaker/cable bay.

@@ -18,9 +18,9 @@ int main() {
   assert(state.begin(0, 100));
   assert(!state.begin(0, 101));
   assert(state.at(0).state == lcars::State::OFF); // Never assume success.
-  state.tick(8099);
+  assert(!state.tick(8099));
   assert(state.at(0).pending);
-  state.tick(8100);
+  assert(state.tick(8100));
   assert(!state.at(0).pending && state.at(0).failed);
   state.update(0, "on");
   assert(!state.at(0).failed);
@@ -34,9 +34,9 @@ int main() {
   assert(state.can_control(1) && !state.can_control(0));
   const uint32_t near_wrap = std::numeric_limits<uint32_t>::max() - 1000;
   assert(state.begin(1, near_wrap));
-  state.tick(near_wrap + 7999U);
+  assert(!state.tick(near_wrap + 7999U));
   assert(state.at(1).pending);
-  state.tick(near_wrap + 8000U);
+  assert(state.tick(near_wrap + 8000U));
   assert(state.at(1).failed);
   assert(!state.begin(lcars::CONTROL_COUNT, 0));
   state.update(lcars::CONTROL_COUNT, "on");

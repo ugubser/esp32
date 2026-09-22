@@ -56,13 +56,16 @@ class ControllerState {
     controls_[index].pending = false;
     controls_[index].failed = true;
   }
-  void tick(uint32_t now) {
+  bool tick(uint32_t now) {
+    bool changed = false;
     for (auto &c : controls_) {
       if (c.pending && static_cast<uint32_t>(now - c.requested_at) >= 8000) {
         c.pending = false;
         c.failed = true;
+        changed = true;
       }
     }
+    return changed;
   }
  private:
   bool connected_{false};

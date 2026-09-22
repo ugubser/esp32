@@ -32,4 +32,9 @@ int main() {
   assert(p.pump(s,4899)==R::FAILED && s.aborted); // timeout across clock wrap
   s=Speaker{};assert(p.begin(clip,6,0));s.failed=true;
   assert(p.pump(s,1)==R::FAILED && s.aborted);
+  std::vector<uint8_t> long_clip(5000);
+  s=Speaker{};s.capacity=long_clip.size();
+  assert(p.begin(long_clip.data(),long_clip.size(),100));
+  assert(p.pump(s,101)==R::PLAYING);
+  assert(s.received.size()==lcars::PcmPlayback::FEED_CHUNK_BYTES);
 }

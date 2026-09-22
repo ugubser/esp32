@@ -7,6 +7,7 @@ namespace lcars {
 // Feed a short flash-resident PCM clip without blocking touch or networking.
 class PcmPlayback {
  public:
+  static constexpr size_t FEED_CHUNK_BYTES = 4096;
   enum class Result { IDLE, PLAYING, FINISHED, FAILED };
   bool begin(const uint8_t *data, size_t size, uint32_t now) {
     if (active_ || !data || !size || size % 2) return false;
@@ -22,7 +23,9 @@ class PcmPlayback {
     if (draining_) {
       if (speaker.is_stopped()) { active_ = false; return Result::FINISHED; }
     } else {
-      const size_t wanted = std::min(size_t(1024), size_ - offset_);
+      // Fill the speaker ring buffer quickly. A deeper head start keeps short
+      // feedback clips continuous if LVGL or HTTPS briefly occupies the loop.
+      const size_t wanted = std::min(FEED_CHUNK_BYTES, size_ - offset_);
       const size_t written = speaker.play(data_ + offset_, wanted, 0);
       if (written > wanted || written % 2) {
         speaker.stop(); active_ = false; return Result::FAILED;

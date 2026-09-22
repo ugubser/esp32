@@ -13,7 +13,7 @@ class TransitClient {
  public:
   void tick(bool wifi,const std::string &key) {
     if(done_.load(std::memory_order_acquire)) {
-      board=result_;done_.store(false,std::memory_order_relaxed);busy_=false;
+      board=std::move(result_);result_={};done_.store(false,std::memory_order_relaxed);busy_=false;
       status="";
       for(size_t r=0;r<board.size();++r) {
         if(!status.empty())status+="; ";
