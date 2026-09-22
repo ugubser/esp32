@@ -319,7 +319,7 @@ class Panel {
     sound_label_=label(system_, "SPEAKER TEST", 315, 235, LILAC, &lv_font_montserrat_16);
     sound_button_=button(system_, "CONTROL SOUND", 315, 258, 311, 56, LILAC, 28);
     bind(sound_button_, [](lv_event_t *) {}, this); // Shared feedback plays the test sound once.
-    label(system_, "FNK0115Q / LCARS 1.8", 0, 318, BLUE, &lv_font_montserrat_16);
+    label(system_, "FNK0115Q / LCARS 1.8.1", 0, 318, BLUE, &lv_font_montserrat_16);
   }
   void update_volume_label() {
     set_label(volume_label_, volume_percent_ == 0 ? "VOLUME: MUTED" :

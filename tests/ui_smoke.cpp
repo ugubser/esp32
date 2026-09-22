@@ -143,7 +143,7 @@ int main() {
   lcars::panel.connection(false,false);click("CONTROL SOUND");assert(sounds.size()==action_sound_before+2);
   lcars::panel.sound_status(false);assert(find(root,"SPEAKER TEST"));snapshot("1.4-system");
   lv_area_t version_area, system_area;
-  auto *version_label=find(root,"FNK0115Q / LCARS 1.8");assert(version_label);
+  auto *version_label=find(root,"FNK0115Q / LCARS 1.8.1");assert(version_label);
   lv_obj_get_coords(version_label,&version_area);
   lv_obj_get_coords(lv_obj_get_parent(version_label),&system_area);
   assert(version_area.y2<=system_area.y2);

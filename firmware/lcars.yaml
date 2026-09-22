@@ -18,10 +18,15 @@ esphome:
     - sd_maintenance.h
   project:
     name: tribecans.lcars-controller
-    version: "1.8.0"
+    version: "1.8.1"
   on_boot:
     priority: -100
     then:
+      # ESPHome's MipiRgb::loop() requests an LCD DMA restart on every pass.
+      # LVGL writes the RGB frame buffer directly, and the IDF driver already
+      # detects missed bounce-buffer transfers at VSYNC. Avoid periodic
+      # visible resynchronization during the HTTPS transit fetch.
+      - lambda: id(lcd).disable_loop();
       - lambda: lcars::probe_sd_read_only();
       - component.update: sd_card_status
 

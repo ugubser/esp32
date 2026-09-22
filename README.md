@@ -5,7 +5,7 @@ transport, built for the **Freenove FNK0115Q** ESP32-S3 5-inch display.
 
 The home controls use a Star Trek: The Next Generation-inspired LCARS interface.
 The transit page follows the local departure-board style: blue background,
-white transport icons and yellow delays. **Version 1.8.0** is running on the
+white transport icons and yellow delays. **Version 1.8.1** is running on the
 assembled device, with updates installed over Wi-Fi.
 
 ![Transit layout with twelve selected departures](docs/images/transit.png)
@@ -49,6 +49,12 @@ clips and the transit icons are embedded in firmware.
 Audio uses GPIO0/18/17 for BCLK/LRCLK/data. Touch polls over I²C, leaving GPIO18
 available for audio. SD uses GPIO10/12/13/11 for CS/clock/MISO/MOSI. HTTPS buffers
 and larger allocations use PSRAM; internal RAM is reserved for system tasks.
+
+ESPHome 2026.8.2 requests an LCD DMA restart in every `mipi_rgb` loop pass.
+The display configuration disables that loop after initialization because LVGL
+draws directly to the RGB frame buffer and the ESP-IDF driver detects missed
+transfers at VSYNC. This targets a visible flash during the minute-by-minute
+transit fetch. Keep this workaround under review when upgrading ESPHome.
 
 ## Set up and build
 
