@@ -11,6 +11,7 @@
 namespace lcars {
 class TransitClient {
  public:
+  bool busy() const { return busy_; }
   void tick(bool wifi,const std::string &key) {
     if(done_.load(std::memory_order_acquire)) {
       board=std::move(result_);result_={};done_.store(false,std::memory_order_relaxed);busy_=false;

@@ -87,14 +87,21 @@ int main() {
         r==3||r==4?"Zürich, Bürkliplatz":"Milchbuck",transit_now+int64_t(180+r*60+n*600),n==0?2:0});
   }
   lcars::panel.transit_tick(transit,transit_now,true);
-  assert(find(root,"ABFAHRTEN")&&find(root,"Bahnhof Stettbach")&&find(root,"S24")&&find(root,"S8")&&
+  lcars::WeatherReading weather{17.2f,20.7f,0.0f,0.4f,transit_now,"2026-09-13"};
+  lcars::panel.weather_tick(weather,transit_now,true);
+  assert(find(root,"JETZT")&&find(root,"MAX HEUTE")&&find(root,"17°")&&find(root,"21°"));
+  assert(!find(root,"ABFAHRTEN"));
+  assert(find(root,"Bahnhof Stettbach")&&find(root,"S24")&&find(root,"S8")&&
     find(root,"161")&&find(root,"165")&&find(root,"Zuerich, Buerkliplatz")&&find(root,"Milchbuck"));
   assert(find(root,"19:00:00")&&find(root,"19:03"));snapshot("transit");
   lcars::panel.transit_tick(transit,transit_now,false);
+  lcars::panel.weather_tick(weather,transit_now,false);
+  assert(find(root,"--°")&&!find(root,"17°"));
   assert(find(root,"WLAN nicht verbunden")&&!find(root,"Bahnhof Stettbach"));snapshot("transit-offline");
   lcars::panel.transit_tick(transit,transit_now+181,true);
   assert(find(root,"Daten veraltet")&&!find(root,"Effretikon"));
   lcars::panel.transit_tick(transit,transit_now,true);
+  lcars::panel.weather_tick(weather,transit_now,true);
   refresh();assert(sounds.empty()); // Building and rendering never play a sound.
   click("SYSTEM");assert(sounds.size()==1);
   // A second tap during playback still navigates, without stacking another clip.
@@ -143,7 +150,7 @@ int main() {
   lcars::panel.connection(false,false);click("CONTROL SOUND");assert(sounds.size()==action_sound_before+2);
   lcars::panel.sound_status(false);assert(find(root,"SPEAKER TEST"));snapshot("1.4-system");
   lv_area_t version_area, system_area;
-  auto *version_label=find(root,"FNK0115Q / LCARS 1.8.1");assert(version_label);
+  auto *version_label=find(root,"FNK0115Q / LCARS 1.9.0");assert(version_label);
   lv_obj_get_coords(version_label,&version_area);
   lv_obj_get_coords(lv_obj_get_parent(version_label),&system_area);
   assert(version_area.y2<=system_area.y2);
@@ -192,7 +199,7 @@ int main() {
   disabled=lv_obj_get_parent(find(root,"LIVING ROOM"));assert(lv_obj_has_state(disabled,LV_STATE_DISABLED));
   lv_obj_send_event(disabled,LV_EVENT_CLICKED,nullptr);assert(power.size()==before);
   open_room("LIVING ROOM");assert(power.size()==before);click("< BACK");snapshot("split-offline");
-  click("TRANSIT");assert(find(root,"ABFAHRTEN"));
+  click("TRANSIT");assert(find(root,"JETZT")&&find(root,"MAX HEUTE"));
   click("LIGHTS");assert(find(root,"KITCHEN"));
   std::cout<<"LVGL UI tests passed: distinct menu/action sounds, rapid taps, disabled-button silence, quiet state updates and sliders, split toggles for all rooms, separate menus, mixed states, duplicate prevention, room navigation, Back, scene paging, action routing, brightness, offline guards, layout bounds\n";
 }

@@ -5,8 +5,7 @@ transport, built for the **Freenove FNK0115Q** ESP32-S3 5-inch display.
 
 The home controls use a Star Trek: The Next Generation-inspired LCARS interface.
 The transit page follows the local departure-board style: blue background,
-white transport icons and yellow delays. **Version 1.8.4** is running on the
-assembled device, with updates installed over Wi-Fi.
+white transport icons and yellow delays. Updates are installed over Wi-Fi.
 
 ![Transit layout with twelve selected departures](docs/images/transit.png)
 
@@ -16,6 +15,8 @@ assembled device, with updates installed over Wi-Fi.
 
 - **Twelve departures at a glance:** selected tram, S-Bahn and bus services,
   with destination, departure time, countdown and delay.
+- **Weather in the transit header:** current temperature and rain, today's
+  forecast high and whether rain is forecast, fetched from Open-Meteo.
 - **Home Assistant lights:** Living Room, Kitchen, Hallway, Dining Table and
   Entry Hall, with separate power and submenu buttons.
 - **Living Room scenes:** 18 scene selections and a brightness slider.
@@ -54,8 +55,8 @@ ESPHome 2026.8.2 requests an LCD DMA restart in every `mipi_rgb` loop pass.
 The display configuration disables that loop after initialization because LVGL
 draws directly to the RGB frame buffer. The transit client reuses one HTTPS
 connection for its four stop requests per minute; a live refresh used one
-connection and returned all six route groups. Display flicker needs observation
-on the physical panel because native tests cannot reproduce RGB DMA contention.
+connection and returned all six route groups. The 64-byte cache-line setting
+below eliminated the remaining refresh flicker on the physical panel.
 Review the display workaround when upgrading ESPHome.
 
 The ESP32-S3 data cache uses 64-byte lines as recommended for RGB bounce-buffer
@@ -136,6 +137,22 @@ The [lighting map](docs/lighting-map.md) describes the current configuration.
 Unavailable or pending controls are disabled, and late responses do not finish
 newer requests.
 
+## Weather
+
+The transit header shows **JETZT** with the current temperature and rain status,
+then **MAX HEUTE** with the forecast high and whether rain is expected today.
+A blue droplet means rain; a slashed droplet means dry. Missing or stale data
+shows `--°` and `?` instead of an old forecast.
+
+The controller reads the coordinates from Home Assistant's `zone.home` and
+requests [Open-Meteo's forecast API](https://open-meteo.com/en/docs) directly
+over HTTPS. There is no weather API key. It refreshes every 30 minutes, retries
+failures after five minutes, and refreshes when the local day changes. The
+Home Assistant **Weather Status** diagnostic sensor reports the last result.
+The rain symbols use Open-Meteo's rain plus showers amounts, so today's symbol
+reflects the model's predicted precipitation rather than a probability.
+Weather requires the Home Assistant connection to provide `zone.home`.
+
 ## Transit
 
 The companion service at `https://transit.tribecans.com/api` requires a bearer
@@ -206,8 +223,8 @@ ctest --test-dir firmware/build/ui-tests --output-on-failure
 ```
 
 Tests cover secrets, lighting state and requests, PCM playback, SD signatures
-and file operations, transit parsing/filtering/expiry, and actual LVGL rendering
-and touch-event routing. UI previews are generated under ignored `logs/`.
+and file operations, transit and weather parsing/filtering/expiry, and actual
+LVGL rendering and touch-event routing. UI previews are generated under ignored `logs/`.
 Physical touch alignment, speaker output and case fit also require device checks.
 Optional CAD tests require CadQuery: `python -m unittest discover -s case -p 'test_*.py'`.
 

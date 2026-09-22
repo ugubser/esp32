@@ -8,6 +8,8 @@ esphome:
     - transit_json.h
     - transit_client.h
     - transit_icons.h
+    - weather_model.h
+    - weather_client.h
     - controller_state.h
     - lcars_ui.h
     - pcm_playback.h
@@ -18,7 +20,7 @@ esphome:
     - sd_maintenance.h
   project:
     name: tribecans.lcars-controller
-    version: "1.8.4"
+    version: "1.9.0"
   on_boot:
     priority: -100
     then:
@@ -264,11 +266,21 @@ interval:
     then:
       - lambda: |-
           lcars::transit_client.tick(id(wifi_connection).is_connected(), id(transit_api_token));
+          lcars::weather_client.tick(id(wifi_connection).is_connected(),
+            id(home_latitude).has_state() && id(home_longitude).has_state(),
+            id(home_latitude).state, id(home_longitude).state, lcars::transit_client.busy());
           lcars::panel.transit_tick(lcars::transit_client.board, std::time(nullptr), id(wifi_connection).is_connected());
+          lcars::panel.weather_tick(lcars::weather_client.reading, std::time(nullptr), id(wifi_connection).is_connected());
           lcars::panel.connection(id(wifi_connection).is_connected(), id(ha_api).is_connected_with_state_subscription());
           lcars::panel.tick(id(device_ip).state);
 
 text_sensor:
+  - platform: template
+    name: Weather Status
+    id: weather_status
+    entity_category: diagnostic
+    update_interval: 60s
+    lambda: return lcars::weather_client.status;
   - platform: template
     name: Transit Status
     id: transit_status
@@ -476,6 +488,16 @@ text_sensor:
           lcars::panel.update_scene(17, x);
 
 sensor:
+  - platform: homeassistant
+    id: home_latitude
+    entity_id: zone.home
+    attribute: latitude
+    internal: true
+  - platform: homeassistant
+    id: home_longitude
+    entity_id: zone.home
+    attribute: longitude
+    internal: true
   - platform: homeassistant
     id: living_brightness
     entity_id: light.living
