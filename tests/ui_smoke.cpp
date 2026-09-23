@@ -8,6 +8,7 @@
 
 static std::array<uint16_t,800*480> pixels;
 static std::vector<lcars::SoundEffect> sounds;
+static std::vector<size_t> schemes;
 static void refresh() { lv_tick_inc(40); lv_timer_handler(); lv_refr_now(nullptr); }
 static lv_obj_t *find(lv_obj_t *obj,const char *text) {
   if(lv_obj_has_flag(obj,LV_OBJ_FLAG_HIDDEN))return nullptr;
@@ -31,10 +32,23 @@ static lv_obj_t *click(const char *text) {
   lv_obj_send_event(button,LV_EVENT_CLICKED,nullptr);refresh();
   assert(sounds.size()==sounds_before+1);
   const bool menu=std::strcmp(text,"SYSTEM")==0||std::strcmp(text,"LIGHTS")==0||
-    std::strcmp(text,"TRANSIT")==0||std::strcmp(text,"< BACK")==0||
+    std::strcmp(text,"TRANSIT")==0||std::strcmp(text,"< BACK")==0||std::strcmp(text,"WEATHER")==0||
+    std::strcmp(text,LV_SYMBOL_RIGHT)==0||std::strcmp(text,LV_SYMBOL_LEFT)==0||
     std::strcmp(text,"<")==0||std::strcmp(text,">")==0;
   assert(sounds.back()==(menu?lcars::SoundEffect::MENU:lcars::SoundEffect::ACTION));
   return button;
+}
+static void settle() { for(int i=0;i<8;++i)refresh(); }
+// Opens the slide-in drawer from the rail tab and selects a page.
+static void nav(const char *page) {
+  assert(!lcars::panel.drawer_open()&&!find(lv_screen_active(),page));
+  click(LV_SYMBOL_RIGHT);assert(lcars::panel.drawer_open());settle();
+  click(page);assert(!lcars::panel.drawer_open());settle();
+  assert(!find(lv_screen_active(),page)); // The drawer hides after it slides out.
+}
+static bool text_color(const char *text,uint32_t expected) {
+  auto *label=find(lv_screen_active(),text);assert(label);
+  return lv_color_eq(lv_obj_get_style_text_color(label,LV_PART_MAIN),lv_color_hex(expected));
 }
 static void open_room(const char *name) {
   lcars::panel.sound_status(false);
@@ -83,7 +97,8 @@ int main() {
     [&](int level,uint32_t request){dim.emplace_back(level,request);},[](float){},
     [&](bool inverted){rotations.push_back(inverted);lcars::panel.rotation_changed(inverted);},false,
     [&](lcars::SoundEffect effect){sounds.push_back(effect);lcars::panel.sound_status(true);},
-    [&](float volume){volumes.push_back(volume);},0.6f);
+    [&](float volume){volumes.push_back(volume);},0.6f,
+    [&](size_t scheme){schemes.push_back(scheme);},0);
   setenv("TZ","Europe/Zurich",1);tzset();
   lcars::TransitBoard transit;
   const auto transit_now=lcars::transit_timestamp("2026-09-13T17:00:00Z");
@@ -94,7 +109,13 @@ int main() {
         r==3||r==4?"Zürich, Bürkliplatz":"Milchbuck",transit_now+int64_t(180+r*60+n*600),n==0?2:0});
   }
   lcars::panel.transit_tick(transit,transit_now,true);
-  lcars::WeatherReading weather{17.2f,20.7f,2,80,true,transit_now,"2026-09-13"};
+  lcars::WeatherReading weather;
+  weather.temperature_c=17.2f;weather.current_code=2;weather.is_day=true;
+  weather.fetched=transit_now;weather.day="2026-09-13";weather.sunrise="07:05";weather.sunset="19:37";
+  constexpr int codes[]={80,0,3,61,71,95,45};
+  for(size_t i=0;i<lcars::FORECAST_DAYS;++i)
+    weather.days[i]={"2026-09-"+std::to_string(13+i),codes[i],20.7f+float(i),9.5f+float(i%3),
+                     i==0?2.4f:0.f,i==0?60:int(i)*10,14.f};
   lcars::panel.weather_tick(weather,transit_now,true);
   assert(find(root,"JETZT")&&find(root,"MAX HEUTE")&&find(root,"17°")&&find(root,"21°"));
   assert(find_image(root,&lcars::weather_cloud_sun_icon));
@@ -107,7 +128,17 @@ int main() {
   assert(!find(root,"ABFAHRTEN"));
   assert(find(root,"Bahnhof Stettbach")&&find(root,"S24")&&find(root,"S8")&&
     find(root,"161")&&find(root,"165")&&find(root,"Zuerich, Buerkliplatz")&&find(root,"Milchbuck"));
-  assert(find(root,"19:00:00")&&find(root,"19:03"));snapshot("transit");
+  assert(find(root,"19:00:00")&&find(root,"19:03")&&find(root,"SO 13.09."));
+  assert(find(root,"LIVE / AKTUALISIERT VOR 0 S"));
+  assert(!find(root,"TRANSIT")&&!find(root,"LIGHTS")); // Navigation lives in the closed drawer.
+  snapshot("transit");
+  // Departures within a minute blink between the alert and normal colour.
+  const auto &classic=lcars::THEMES[0];
+  lcars::panel.transit_tick(transit,transit_now+178,true);
+  assert(find(root,"<1 min")&&text_color("<1 min",classic.tertiary));
+  lcars::panel.transit_tick(transit,transit_now+179,true);
+  assert(text_color("<1 min",classic.alert));
+  lcars::panel.transit_tick(transit,transit_now,true);
   lcars::panel.transit_tick(transit,transit_now,false);
   lcars::panel.weather_tick(weather,transit_now,false);
   assert(find(root,"--°")&&!find(root,"17°"));
@@ -118,10 +149,20 @@ int main() {
   lcars::panel.transit_tick(transit,transit_now,true);
   lcars::panel.weather_tick(weather,transit_now,true);
   refresh();assert(sounds.empty()); // Building and rendering never play a sound.
-  click("SYSTEM");assert(sounds.size()==1);
+  click(LV_SYMBOL_RIGHT);assert(sounds.size()==1&&lcars::panel.drawer_open());snapshot("drawer");
   // A second tap during playback still navigates, without stacking another clip.
   lv_obj_send_event(lv_obj_get_parent(find(root,"LIGHTS")),LV_EVENT_CLICKED,nullptr);
-  refresh();assert(sounds.size()==1&&find(root,"KITCHEN"));
+  settle();assert(sounds.size()==1&&find(root,"KITCHEN")&&!lcars::panel.drawer_open());
+  // Tapping outside the drawer closes it quietly.
+  click(LV_SYMBOL_RIGHT);auto quiet_before=sounds.size();
+  auto *backdrop=lv_obj_get_child(root,int32_t(lv_obj_get_child_count(root))-2);
+  lv_obj_send_event(backdrop,LV_EVENT_CLICKED,nullptr);settle();
+  assert(!lcars::panel.drawer_open()&&sounds.size()==quiet_before&&find(root,"KITCHEN"));
+  // The close strip also closes it, and the drawer closes itself when idle.
+  click(LV_SYMBOL_RIGHT);click(LV_SYMBOL_LEFT);settle();assert(!lcars::panel.drawer_open());
+  click(LV_SYMBOL_RIGHT);lv_tick_inc(lcars::Panel::DRAWER_IDLE_MS-100);lcars::panel.tick("");
+  assert(lcars::panel.drawer_open());
+  lv_tick_inc(100);lcars::panel.tick("");settle();assert(!lcars::panel.drawer_open()&&find(root,"KITCHEN"));
   open_room("LIVING ROOM");assert(power.empty()); // Navigation never toggles a room.
   auto *bright=find(root,"BRIGHT");assert(bright&&lv_obj_has_state(lv_obj_get_parent(bright),LV_STATE_DISABLED));
   click("< BACK");
@@ -152,7 +193,7 @@ int main() {
   lcars::panel.update(4,"off");lcars::panel.update(6,"off");
   click("< BACK");open_room("ENTRY HALL");snapshot("entry");
   click("HUE ENTRY HALL");assert(power.back().first==7&&power.back().second);
-  click("< BACK");click("SYSTEM");snapshot("system");
+  click("< BACK");nav("SYSTEM");snapshot("system");
   click("DIM");click("NORMAL");click("BRIGHT");
   click("ROTATE 180");assert(rotations.size()==1&&rotations.back());
   assert(find(root,"ORIENTATION: 180 DEG"));
@@ -165,7 +206,7 @@ int main() {
   lcars::panel.connection(false,false);click("CONTROL SOUND");assert(sounds.size()==action_sound_before+2);
   lcars::panel.sound_status(false);assert(find(root,"SPEAKER TEST"));snapshot("1.4-system");
   lv_area_t version_area, system_area;
-  auto *version_label=find(root,"FNK0115Q / LCARS 1.9.1");assert(version_label);
+  auto *version_label=find(root,"FNK0115Q / LCARS 2.0.0");assert(version_label);
   lv_obj_get_coords(version_label,&version_area);
   lv_obj_get_coords(lv_obj_get_parent(version_label),&system_area);
   assert(version_area.y2<=system_area.y2);
@@ -179,7 +220,34 @@ int main() {
   for(int i=0;i<12;++i)click("- VOL");
   assert(volumes.size()==14&&volumes.back()==0.0f&&find(root,"VOLUME: MUTED"));
   for(int i=0;i<6;++i)click("+ VOL");snapshot("1.4-system");
-  click("< BACK");
+  // Colour schemes rebuild the interface, persist the choice and keep state.
+  assert(text_color("19:00:00",classic.primary)&&text_color("NEMESIS BLUE",lcars::THEMES[1].primary));
+  click("CLASSIC");settle();assert(schemes.empty()); // Selecting the active scheme does nothing.
+  for(size_t i:{size_t(1),size_t(2),size_t(3),size_t(0)}) {
+    click(lcars::THEMES[i].name);settle();
+    assert(schemes.back()==i&&lcars::panel.scheme()==i);
+    assert(find(root,"SYSTEM CONFIGURATION")&&find(root,"VOLUME: 60%")&&find(root,"ORIENTATION: 0 DEG"));
+    assert(find(root,"19:00:00")&&text_color("19:00:00",lcars::THEMES[i].primary));
+    assert(text_color(lcars::THEMES[i].name,lcars::BLACK));
+    assert(find(root,"JETZT")&&find(root,"17°")&&find_image(root,&lcars::weather_cloud_sun_icon));
+    if(i==1){snapshot("system-blue");nav("TRANSIT");snapshot("transit-blue");nav("SYSTEM");}
+    if(i==2){nav("TRANSIT");snapshot("transit-red");nav("SYSTEM");}
+    if(i==3){nav("TRANSIT");snapshot("transit-voyager");nav("SYSTEM");}
+  }
+  assert(schemes.size()==4&&lcars::theme_index(3)==3&&lcars::theme_index(4)==0&&lcars::theme_index(-1)==0);
+  nav("WEATHER");
+  assert(find(root,"HEUTE")&&find(root,"MO")&&find(root,"SA")&&find(root,"14.09.")&&find(root,"19.09."));
+  assert(find(root,"60%")&&find(root,"2.4 MM")&&find(root,"14 KM/H")&&find(root,"27°")&&find(root,"10°"));
+  assert(find_image(root,&lcars::weather_cloud_sun_rain_large_icon)&&find_image(root,&lcars::weather_cloud_lightning_large_icon));
+  assert(find(root,"SONNE 07:05 - 19:37 / OPEN-METEO VOR 0 MIN"));snapshot("weather");
+  lcars::panel.weather_tick(weather,transit_now,false);
+  assert(find(root,"--%")&&!find(root,"60%")&&!find_image(root,&lcars::weather_cloud_lightning_large_icon));
+  assert(find(root,"OFFLINE / WLAN"));snapshot("weather-offline");
+  lcars::panel.weather_tick(weather,transit_now,true);assert(find(root,"60%"));
+  // Other pages return to transit after two idle minutes.
+  lv_tick_inc(lcars::Panel::PAGE_IDLE_MS-2000);lcars::panel.tick("");assert(find(root,"HEUTE"));
+  lv_tick_inc(2000);lcars::panel.tick("");settle();assert(!find(root,"HEUTE")&&find(root,"Bahnhof Stettbach"));
+  nav("LIGHTS");
   lcars::panel.connection(false,false);open_room("DINING TABLE");snapshot("offline");
   assert(lv_obj_has_state(lv_obj_get_parent(find(root,"ALL ON")),LV_STATE_DISABLED));
   // Test both sides of every main tile, including when another submenu was
@@ -214,7 +282,7 @@ int main() {
   disabled=lv_obj_get_parent(find(root,"LIVING ROOM"));assert(lv_obj_has_state(disabled,LV_STATE_DISABLED));
   lv_obj_send_event(disabled,LV_EVENT_CLICKED,nullptr);assert(power.size()==before);
   open_room("LIVING ROOM");assert(power.size()==before);click("< BACK");snapshot("split-offline");
-  click("TRANSIT");assert(find(root,"JETZT")&&find(root,"MAX HEUTE"));
-  click("LIGHTS");assert(find(root,"KITCHEN"));
-  std::cout<<"LVGL UI tests passed: distinct menu/action sounds, rapid taps, disabled-button silence, quiet state updates and sliders, split toggles for all rooms, separate menus, mixed states, duplicate prevention, room navigation, Back, scene paging, action routing, brightness, offline guards, layout bounds\n";
+  nav("TRANSIT");assert(find(root,"JETZT")&&find(root,"MAX HEUTE"));
+  nav("LIGHTS");assert(find(root,"KITCHEN"));
+  std::cout<<"LVGL UI tests passed: drawer navigation and auto-close, idle return, colour schemes, 7-day forecast, distinct menu/action sounds, rapid taps, disabled-button silence, quiet state updates and sliders, split toggles for all rooms, separate menus, mixed states, duplicate prevention, room navigation, Back, scene paging, action routing, brightness, offline guards, layout bounds\n";
 }

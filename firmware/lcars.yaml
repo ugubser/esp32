@@ -12,6 +12,7 @@ esphome:
     - weather_icons.h
     - weather_client.h
     - controller_state.h
+    - lcars_theme.h
     - lcars_ui.h
     - pcm_playback.h
     - ui_sounds.h
@@ -21,7 +22,7 @@ esphome:
     - sd_maintenance.h
   project:
     name: tribecans.lcars-controller
-    version: "1.9.1"
+    version: "2.0.0"
   on_boot:
     priority: -100
     then:
@@ -46,6 +47,10 @@ globals:
     type: bool
     restore_value: true
     initial_value: 'false'
+  - id: color_scheme
+    type: int
+    restore_value: true
+    initial_value: '0'
 
 esp32:
   board: esp32-s3-devkitc-1
@@ -241,7 +246,9 @@ lvgl:
           id(screen_inverted),
           [](lcars::SoundEffect effect) { id(play_feedback).execute(static_cast<int>(effect)); },
           [](float volume) { id(set_sound_volume).execute(volume); },
-          id(sound_volume));
+          id(sound_volume),
+          [](size_t scheme) { id(set_color_scheme).execute(static_cast<int>(scheme)); },
+          lcars::theme_index(id(color_scheme)));
     - lvgl.display.set_rotation:
         lvgl_id: display_ui
         rotation: !lambda |-
@@ -509,6 +516,15 @@ sensor:
           lcars::panel.update_brightness(x);
 
 script:
+  - id: set_color_scheme
+    parameters:
+      scheme: int
+    then:
+      - lambda: |-
+          id(color_scheme) = scheme;
+          color_scheme->update();
+          esphome::global_preferences->sync();
+          ESP_LOGI("lcars", "Colour scheme %d (saved)", scheme);
   - id: set_sound_volume
     parameters:
       volume: float

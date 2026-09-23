@@ -1,4 +1,4 @@
-"""Rasterize the pinned Lucide weather SVGs for the LVGL header.
+"""Rasterize the pinned Lucide weather SVGs for the header and forecast.
 
 Requires rsvg-convert and Pillow. Run from the repository root.
 """
@@ -14,6 +14,7 @@ ROOT = Path(__file__).resolve().parents[1]
 ASSETS = ROOT / "firmware" / "weather_assets"
 OUTPUT = ROOT / "firmware" / "weather_icons.h"
 SIZE = 28
+LARGE_SIZE = 48
 COLORS = {
     "sun": "#FFD36A",
     "moon": "#DCE7FF",
@@ -30,13 +31,13 @@ COLORS = {
 }
 
 
-def rasterize(name: str, color: str) -> Image.Image:
+def rasterize(name: str, color: str, size: int = SIZE) -> Image.Image:
     svg = (ASSETS / f"{name}.svg").read_text()
     assert 'stroke="currentColor"' in svg and 'stroke-width="2"' in svg
     svg = svg.replace('stroke="currentColor"', f'stroke="{color}"')
     svg = svg.replace('stroke-width="2"', 'stroke-width="2.3"')
     rendered = subprocess.run(
-        ["rsvg-convert", "--width", str(SIZE), "--height", str(SIZE)],
+        ["rsvg-convert", "--width", str(size), "--height", str(size)],
         input=svg.encode(), capture_output=True, check=True
     ).stdout
     return Image.open(BytesIO(rendered)).convert("RGBA")
@@ -44,6 +45,7 @@ def rasterize(name: str, color: str) -> Image.Image:
 
 def descriptor(name: str, image: Image.Image) -> str:
     name = name.replace("-", "_")
+    size = image.width
     # LVGL ARGB8888 stores pixels in BGRA byte order on the ESP32 and native tests.
     raw = bytearray()
     for r, g, b, a in image.getdata():
@@ -54,8 +56,8 @@ def descriptor(name: str, image: Image.Image) -> str:
         f"inline const uint8_t weather_{name}_pixels[] = {{\n{body}\n}};\n"
         f"inline const lv_image_dsc_t weather_{name}_icon = [] {{\n"
         f"  lv_image_dsc_t d{{}}; d.header.magic=LV_IMAGE_HEADER_MAGIC;\n"
-        f"  d.header.cf=LV_COLOR_FORMAT_ARGB8888; d.header.w={SIZE}; d.header.h={SIZE};\n"
-        f"  d.header.stride={SIZE * 4}; d.data_size=sizeof(weather_{name}_pixels);\n"
+        f"  d.header.cf=LV_COLOR_FORMAT_ARGB8888; d.header.w={size}; d.header.h={size};\n"
+        f"  d.header.stride={size * 4}; d.data_size=sizeof(weather_{name}_pixels);\n"
         f"  d.data=weather_{name}_pixels; return d;\n"
         f"}}();\n"
     )
@@ -70,6 +72,9 @@ def main() -> None:
         "// See weather_assets/LUCIDE-LICENSE and weather_assets/README.md.\n"
         "#pragma once\n#include \"lvgl.h\"\nnamespace lcars {\n"
         + "\n".join(descriptor(name, image) for name, image in images.items())
+        + "\n"
+        + "\n".join(descriptor(f"{name}-large", rasterize(name, color, LARGE_SIZE))
+                    for name, color in COLORS.items())
         + "}\n"
     )
     OUTPUT.write_text(source)

@@ -59,8 +59,9 @@ class WeatherClient {
     const int size=std::snprintf(url,sizeof(url),
       "https://api.open-meteo.com/v1/forecast?latitude=%.5f&longitude=%.5f"
       "&current=temperature_2m,weather_code,is_day"
-      "&daily=temperature_2m_max,weather_code"
-      "&timezone=Europe%%2FZurich&forecast_days=1",latitude_,longitude_);
+      "&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,"
+      "precipitation_probability_max,wind_speed_10m_max,sunrise,sunset"
+      "&timezone=Europe%%2FZurich&forecast_days=%u",latitude_,longitude_,unsigned(FORECAST_DAYS));
     if(size<0 || size>=int(sizeof(url))){result_status_="Weather URL invalid";return;}
     Response response;
     esp_http_client_config_t cfg{};

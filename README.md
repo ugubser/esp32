@@ -3,9 +3,9 @@
 A wall-mounted touchscreen for Home Assistant lighting and Zürich public
 transport, built for the **Freenove FNK0115Q** ESP32-S3 5-inch display.
 
-The home controls use a Star Trek: The Next Generation-inspired LCARS interface.
-The transit page follows the local departure-board style: blue background,
-white transport icons and yellow delays. Updates are installed over Wi-Fi.
+Every page uses a Star Trek: The Next Generation-inspired LCARS interface,
+including the transit board, with four selectable colour schemes. Updates are
+installed over Wi-Fi.
 
 ![Transit layout with twelve selected departures](docs/images/transit.png)
 
@@ -15,20 +15,31 @@ white transport icons and yellow delays. Updates are installed over Wi-Fi.
 
 - **Twelve departures at a glance:** selected tram, S-Bahn and bus services,
   with destination, departure time, countdown and delay.
-- **Weather in the transit header:** current temperature and condition, today's
-  forecast high and condition, fetched from Open-Meteo.
+- **Weather in the header:** current temperature and condition, today's
+  forecast high and condition, fetched from Open-Meteo, visible on every page.
+- **7-day forecast:** condition, high/low on a shared temperature scale, rain
+  probability and amount, maximum wind, and today's sunrise and sunset.
 - **Home Assistant lights:** Living Room, Kitchen, Hallway, Dining Table and
   Entry Hall, with separate power and submenu buttons.
 - **Living Room scenes:** 18 scene selections and a brightness slider.
-- **System controls:** screen brightness, saved 180° rotation and speaker volume.
+- **System controls:** screen brightness, saved 180° rotation, speaker volume and
+  a saved colour scheme: Classic, Nemesis Blue, Red Alert or Voyager.
+- **Animations:** a sliding navigation drawer, buttons that flash and fade on
+  touch, a staggered fade when a page opens, and blinking departures under a minute.
 - **Touch feedback:** distinct Star Trek-style sounds for menu navigation and
   control actions, with mute at zero volume, buffered playback and no overlapping clips during rapid taps.
 - **Wi-Fi updates:** encrypted ESPHome API and password-protected OTA.
 - **Optional FAT32 storage:** remote diagnostics and explicit storage tests.
 - **Printable case:** a slim enclosure with a flat back and a speaker/cable bay.
 
-The device starts on TRANSIT. Tap **LIGHTS** or **SYSTEM** at the top to open
-LCARS; **TRANSIT** in its sidebar returns to departures.
+The device starts on TRANSIT. Tap the **›** tab on the left rail to slide in the
+navigation drawer with **TRANSIT**, **WEATHER**, **LIGHTS** and **SYSTEM**. The
+drawer closes after a selection, a tap outside it, or 10 seconds without input.
+Any other page returns to TRANSIT after two minutes without input.
+
+![Navigation drawer over the transit board](docs/images/drawer.png)
+
+![7-day weather forecast](docs/images/weather.png)
 
 ![LCARS lighting controls](docs/images/lights.png)
 
@@ -139,15 +150,20 @@ newer requests.
 
 ## Weather
 
-The transit header shows **JETZT** with the current temperature and condition,
+The header shows **JETZT** with the current temperature and condition,
 then **MAX HEUTE** with the forecast high and the day's overall condition.
 The icons distinguish clear, partly cloudy, overcast, fog, drizzle, rain,
 showers, snow and thunderstorms. Current conditions use sun or moon variants
 according to the time of day. Missing or stale data shows `--°` and `?`.
 
+The **WEATHER** page lists seven days, starting with today. Each column shows
+the condition, the high and low with a bar on a scale shared by the week, the
+maximum rain probability, the rain total and the maximum wind speed. The footer
+shows today's sunrise and sunset and the age of the data.
+
 The controller reads the coordinates from Home Assistant's `zone.home` and
 requests [Open-Meteo's forecast API](https://open-meteo.com/en/docs) directly
-over HTTPS. There is no weather API key. It refreshes every 30 minutes, retries
+over HTTPS in a single request of about 1.3 KB. There is no weather API key. It refreshes every 30 minutes, retries
 failures after five minutes, and refreshes when the local day changes. The
 Home Assistant **Weather Status** diagnostic sensor reports the last result.
 The icons use Open-Meteo's current and daily WMO weather codes; the daily code
