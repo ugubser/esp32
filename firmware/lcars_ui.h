@@ -154,6 +154,10 @@ class Panel {
     enabled(sound_button_, !busy);
     set_label(sound_label_, failed ? "AUDIO ERROR" : busy ? "PLAYING..." : "SPEAKER TEST");
   }
+  void log_connection_status() const {
+    ESP_LOGI("network_diag","UI ready=%d wifi=%d HA=%d page=%u footer=%s",ready_,wifi_,
+             state.connected(),unsigned(page_),ready_?lv_label_get_text(status_):"not built");
+  }
   void connection(bool wifi, bool ha) {
     const bool connected=wifi&&ha;
     if(wifi_==wifi&&state.connected()==connected)return;

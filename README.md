@@ -230,6 +230,13 @@ remains a prototype even though the owner's modified print is in use.
 
 ## Tests
 
+The temporary `2.0.1-diag` firmware records Wi-Fi association, signal, IP/DNS,
+HTTP transport errors and bounded TCP probes after a failed transit request.
+It does not log credentials or request headers. These ESP-IDF network probes
+require physical device checks rather than host unit tests: they inspect the
+station interface and its actual DNS/socket behaviour. Existing native tests
+continue to cover the UI, parsers and controller behaviour.
+
 After the first firmware compilation, native tests reuse the same downloaded
 LVGL and cJSON sources. Install CMake 3.19+ and a C/C++17 compiler, then run:
 

@@ -6,6 +6,7 @@ esphome:
     - lighting_config.h
     - transit_model.h
     - transit_json.h
+    - network_diagnostics.h
     - transit_client.h
     - transit_icons.h
     - weather_model.h
@@ -22,7 +23,7 @@ esphome:
     - sd_maintenance.h
   project:
     name: tribecans.lcars-controller
-    version: "2.0.0"
+    version: "2.0.1-diag"
   on_boot:
     priority: -100
     then:
@@ -255,6 +256,13 @@ lvgl:
           return id(screen_inverted) ? 180 : 0;
 
 interval:
+  - interval: 30s
+    then:
+      - lambda: |-
+          ESP_LOGI("network_diag", "State wifi=%d HA=%d transit_busy=%d",
+            id(wifi_connection).is_connected(), id(ha_api).is_connected_with_state_subscription(),
+            lcars::transit_client.busy());
+          lcars::panel.log_connection_status();
   - interval: 250ms
     then:
       - lambda: |-

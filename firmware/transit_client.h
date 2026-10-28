@@ -3,6 +3,7 @@
 #include "esp_http_client.h"
 #include "esp_crt_bundle.h"
 #include "esp_heap_caps.h"
+#include "network_diagnostics.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include <atomic>
@@ -48,6 +49,7 @@ class TransitClient {
     return ESP_OK;
   }
   void fetch() {
+    network_snapshot();
     ESP_LOGI("transit","Fetching departures; internal free %u, largest %u, clock %lld",
       unsigned(heap_caps_get_free_size(MALLOC_CAP_INTERNAL)),
       unsigned(heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL)),static_cast<long long>(std::time(nullptr)));
@@ -63,6 +65,7 @@ class TransitClient {
       esp_http_client_set_header(client,"Authorization",auth.c_str());
       esp_http_client_set_header(client,"Accept","application/json");
     }
+    bool probed=false;
     for(unsigned stop=0;stop<TRANSIT_STOPS.size();++stop) {
       std::string error;response.body.clear();response.too_large=false;
       if(!client)error="Netzwerkfehler";
@@ -75,9 +78,14 @@ class TransitClient {
         if(err==ESP_OK)err=esp_http_client_perform(client);
         const int code=err==ESP_OK?esp_http_client_get_status_code(client):0;
         if(err!=ESP_OK) {
-          int tls_error=0,verify_flags=0;
-          esp_http_client_get_and_clear_last_tls_error(client,&tls_error,&verify_flags);
-          ESP_LOGW("transit","Stop %u: %s, HTTP %d, TLS %d, verify flags %d",stop,esp_err_to_name(err),code,tls_error,verify_flags);
+          ESP_LOGW("transit","Stop %u failed",stop);
+          network_http_error("transit",client,err);
+          if(!probed) {
+            probed=true;
+            network_probe("transit.tribecans.com","443");
+            network_probe("api.open-meteo.com","443");
+            network_probe("192.168.0.125","8123");
+          }
         }
         if(response.too_large)error="Antwort zu gross";
         else if(err!=ESP_OK)error="Verbindung fehlgeschlagen";

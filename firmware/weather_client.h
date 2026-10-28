@@ -1,5 +1,6 @@
 #pragma once
 #include "weather_model.h"
+#include "network_diagnostics.h"
 #include "esp_http_client.h"
 #include "esp_crt_bundle.h"
 #include "freertos/FreeRTOS.h"
@@ -71,6 +72,7 @@ class WeatherClient {
     if(!client){result_status_="Weather network unavailable";return;}
     esp_http_client_set_header(client,"Accept","application/json");
     const auto err=esp_http_client_perform(client);
+    if(err!=ESP_OK)network_http_error("weather",client,err);
     const int code=esp_http_client_get_status_code(client);
     if(response.too_large)result_status_="Weather response too large";
     else if(err!=ESP_OK)result_status_="Weather connection failed";
